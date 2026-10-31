@@ -1,0 +1,185 @@
+{
+  "schema": "1.0",
+  "name": "递归查找按钮",
+  "description": "v2.5：鼠标点击自带识图（一步完成识图+点击），找不到就等 1 秒递归重试，最多 5 层",
+  "global_vars": [],
+  "functions": [
+    {
+      "name": "find_btn",
+      "params": [ { "name": "deep", "type": "num" } ],
+      "has_return": true,
+      "body": [
+        {
+          "id": "b_f1",
+          "type": "if",
+          "category": "logic",
+          "params": { "branches": [ "main", "else" ] },
+          "inputs": [ { "port": "cond", "from": "b_f2.result" } ],
+          "children": [
+            [
+              {
+                "id": "b_f2",
+                "type": "compare",
+                "category": "var",
+                "params": { "op": ">", "a": "$deep", "b": "5" },
+                "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+                "next": "b_f3",
+                "x": 60, "y": 100, "breakpoint": false, "comment": "deep > 5"
+              },
+              {
+                "id": "b_f3",
+                "type": "log",
+                "category": "action",
+                "params": { "level": "WARN", "text": "递归超限 deep=${deep}" },
+                "inputs": [ { "port": "text", "from": "" } ],
+                "next": "b_f4",
+                "x": 60, "y": 160, "breakpoint": false, "comment": ""
+              },
+              {
+                "id": "b_f4",
+                "type": "return",
+                "category": "func",
+                "params": {},
+                "inputs": [ { "port": "value", "from": "" } ],
+                "next": null,
+                "x": 60, "y": 220, "breakpoint": false, "comment": "返回 false"
+              }
+            ],
+            [
+              {
+                "id": "b_f5",
+                "type": "mouse_click",
+                "category": "action",
+                "params": {
+                  "coord_mode": "image",
+                  "template": "templates/submit.png",
+                  "region": "full",
+                  "threshold": 0.8,
+                  "button": "left",
+                  "action": "click",
+                  "offset": [ 0, 0 ],
+                  "on_fail": "skip",
+                  "retries": 0,
+                  "retry_delay": 0,
+                  "delay_after": 0,
+                  "x": "",
+                  "y": ""
+                },
+                "inputs": [],
+                "next": "b_f6",
+                "x": 60, "y": 300, "breakpoint": false, "comment": "自动识图并点击（找不到返回 false）"
+              },
+              {
+                "id": "b_f6",
+                "type": "if",
+                "category": "logic",
+                "params": { "branches": [ "main", "else" ] },
+                "inputs": [ { "port": "cond", "from": "b_f5.found" } ],
+                "children": [
+                  [
+                    {
+                      "id": "b_f7",
+                      "type": "return",
+                      "category": "func",
+                      "params": {},
+                      "inputs": [ { "port": "value", "from": "b_f5.success" } ],
+                      "next": null,
+                      "x": 80, "y": 380, "breakpoint": false, "comment": "找到并点击，返回 true"
+                    }
+                  ],
+                  [
+                    {
+                      "id": "b_f9",
+                      "type": "sleep",
+                      "category": "logic",
+                      "params": { "seconds": 1 },
+                      "inputs": [],
+                      "next": "b_f10",
+                      "x": 80, "y": 520, "breakpoint": false, "comment": ""
+                    },
+                    {
+                      "id": "b_f10",
+                      "type": "math",
+                      "category": "var",
+                      "params": { "op": "+", "a": "$deep", "b": "1" },
+                      "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+                      "next": "b_f11",
+                      "x": 80, "y": 580, "breakpoint": false, "comment": "deep + 1"
+                    },
+                    {
+                      "id": "b_f11",
+                      "type": "call_func",
+                      "category": "func",
+                      "params": { "func": "find_btn" },
+                      "inputs": [ { "port": "deep", "from": "b_f10.result" } ],
+                      "next": "b_f12",
+                      "x": 80, "y": 640, "breakpoint": false, "comment": ""
+                    },
+                    {
+                      "id": "b_f12",
+                      "type": "return",
+                      "category": "func",
+                      "params": {},
+                      "inputs": [ { "port": "value", "from": "b_f11.result" } ],
+                      "next": null,
+                      "x": 80, "y": 700, "breakpoint": false, "comment": "返回递归结果"
+                    }
+                  ]
+                ],
+                "next": null,
+                "x": 60, "y": 360, "breakpoint": false, "comment": ""
+              }
+            ]
+          ],
+          "next": null,
+          "x": 40, "y": 40, "breakpoint": false, "comment": ""
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "b_001",
+      "type": "call_func",
+      "category": "func",
+      "params": { "func": "find_btn", "deep": "1" },
+      "inputs": [ { "port": "deep", "from": "" } ],
+      "next": "b_002",
+      "x": 40, "y": 40, "breakpoint": false, "comment": "调用 find_btn(1)"
+    },
+    {
+      "id": "b_002",
+      "type": "if",
+      "category": "logic",
+      "params": { "branches": [ "main", "else" ] },
+      "inputs": [ { "port": "cond", "from": "b_001.result" } ],
+      "children": [
+        [
+          {
+            "id": "b_003",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "INFO", "text": "任务完成" },
+            "inputs": [ { "port": "text", "from": "" } ],
+            "next": null,
+            "x": 60, "y": 140, "breakpoint": false, "comment": ""
+          }
+        ],
+        [
+          {
+            "id": "b_004",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "ERROR", "text": "查找失败" },
+            "inputs": [ { "port": "text", "from": "" } ],
+            "next": null,
+            "x": 60, "y": 220, "breakpoint": false, "comment": ""
+          }
+        ]
+      ],
+      "next": null,
+      "x": 40, "y": 120, "breakpoint": false, "comment": ""
+    }
+  ],
+  "settings": { "max_recursion": 100, "default_threshold": 0.8 }
+}

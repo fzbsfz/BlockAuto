@@ -1,0 +1,101 @@
+{
+  "schema": "1.0",
+  "name": "入门示例：变量与循环",
+  "description": "不涉及键鼠和识图的纯逻辑示例，可直接用 BlockRunner 运行",
+  "global_vars": [],
+  "functions": [],
+  "blocks": [
+    {
+      "id": "b_001",
+      "type": "create_var",
+      "category": "var",
+      "params": { "name": "total", "scope": "local", "type": "num", "init": "0" },
+      "inputs": [],
+      "next": "b_002",
+      "x": 40, "y": 40, "breakpoint": false, "comment": "计数器"
+    },
+    {
+      "id": "b_002",
+      "type": "for_count",
+      "category": "logic",
+      "params": { "times": 3 },
+      "inputs": [ { "port": "count", "from": "" } ],
+      "children": [
+        [
+          {
+            "id": "b_003",
+            "type": "set_var",
+            "category": "var",
+            "params": { "name": "total", "value": "" },
+            "inputs": [ { "port": "value", "from": "b_004.result" } ],
+            "next": "b_004",
+            "x": 60, "y": 100, "breakpoint": false, "comment": ""
+          },
+          {
+            "id": "b_004",
+            "type": "math",
+            "category": "var",
+            "params": { "op": "+", "a": "$total", "b": "1" },
+            "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+            "next": "b_005",
+            "x": 60, "y": 160, "breakpoint": false, "comment": "total + 1"
+          },
+          {
+            "id": "b_005",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "INFO", "text": "第 ${total} 轮" },
+            "inputs": [ { "port": "text", "from": "" } ],
+            "next": null,
+            "x": 60, "y": 220, "breakpoint": false, "comment": ""
+          }
+        ]
+      ],
+      "next": "b_006",
+      "x": 40, "y": 100, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_006",
+      "type": "compare",
+      "category": "var",
+      "params": { "op": "==", "a": "$total", "b": "3" },
+      "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+      "next": "b_007",
+      "x": 40, "y": 300, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_007",
+      "type": "if",
+      "category": "logic",
+      "params": { "branches": [ "main", "else" ] },
+      "inputs": [ { "port": "cond", "from": "b_006.result" } ],
+      "children": [
+        [
+          {
+            "id": "b_008",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "INFO", "text": "完成：共 ${total} 轮" },
+            "inputs": [ { "port": "text", "from": "" } ],
+            "next": null,
+            "x": 60, "y": 380, "breakpoint": false, "comment": ""
+          }
+        ],
+        [
+          {
+            "id": "b_009",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "WARN", "text": "计数异常：${total}" },
+            "inputs": [ { "port": "text", "from": "" } ],
+            "next": null,
+            "x": 60, "y": 460, "breakpoint": false, "comment": ""
+          }
+        ]
+      ],
+      "next": null,
+      "x": 40, "y": 360, "breakpoint": false, "comment": ""
+    }
+  ],
+  "settings": { "max_recursion": 100, "default_threshold": 0.8 }
+}

@@ -1,0 +1,14 @@
+OK form=2240x1520 client=2214 root=2214 middle=2214 content=2062 side=600 canvas=2062x1161 left=134 items=9 dpi=96 sideBounds={X=1949,Y=0,Width=600,Height=1161} sideZ=2 parent=content kids=0:RichTextBox- 1:BlockCanvas+ 2:SideParamPanel+  contentSize={Width=2062, Height=1161} client={Width=2062, Height=1161} | mouse_click(b_001) | sleep(b_002) | key_type(b_003) | if(b_004)[main=1][else=1] title=BlockAuto 积木自动化平台 - keymouse_demo.block
+RUN status=选中：如果 / 否则如果 / 否则（b_004） sessions=1 logLen=233 canvasEnabled=False
+DIALOG param OK 1134x1209
+DIALOG function OK 934x609
+DIALOG settings OK 1194x1389
+DIALOG hotkeyedit OK 1034x469
+DIALOG scheduleedit OK 1114x889
+DIALOG textinput OK 834x329
+DIALOG templates OK 1614x1049
+DIALOG hotkeys OK 1494x889
+DIALOG schedules OK 1694x969
+DIALOG recorder OK 1434x1069
+DIALOG network OK 1514x1189
+DIALOG pack OK 1274x809

@@ -1,0 +1,20 @@
+# 编译产物
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# 打包压缩包
+*.zip
+*.rar
+*.7z
+
+# 运行/备份/临时
+.backup/
+*.log
+*.tmp
+~$*
+
+# 发布版目录（保留源码即可）
+BlockAuto-v1.0-键鼠/

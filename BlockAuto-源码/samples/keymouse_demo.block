@@ -1,0 +1,90 @@
+{
+  "schema": "1.0",
+  "name": "键鼠示例：自动识图点击 + 输入 + 有图才执行",
+  "description": "v2.5：鼠标点击自带识图（截图取图 → 运行时自动找到目标并点击），不再需要单独的识图积木；判断仍可用「有图片」条件",
+  "global_vars": [],
+  "functions": [],
+  "blocks": [
+    {
+      "id": "b_001",
+      "type": "mouse_click",
+      "category": "action",
+      "params": {
+        "coord_mode": "image",
+        "template": "templates/submit.png",
+        "region": "active",
+        "threshold": 0.8,
+        "button": "left",
+        "action": "click",
+        "offset": [ 0, 0 ],
+        "on_fail": "retry",
+        "retries": 3,
+        "retry_delay": 1,
+        "delay_after": 0.2,
+        "x": "",
+        "y": ""
+      },
+      "inputs": [],
+      "next": "b_002",
+      "x": 40, "y": 40, "breakpoint": false, "comment": "自动识图并点击（一步完成）"
+    },
+    {
+      "id": "b_002",
+      "type": "sleep",
+      "category": "logic",
+      "params": { "seconds": 0.5 },
+      "inputs": [],
+      "next": "b_003",
+      "x": 40, "y": 100, "breakpoint": false, "comment": "等界面响应"
+    },
+    {
+      "id": "b_003",
+      "type": "key_type",
+      "category": "action",
+      "params": { "text": "hello BlockAuto" },
+      "inputs": [],
+      "next": "b_004",
+      "x": 40, "y": 160, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_004",
+      "type": "if",
+      "category": "logic",
+      "params": {
+        "branches": [ "main", "else" ],
+        "cond_type": "image",
+        "template": "templates/submit.png",
+        "region": "active",
+        "threshold": 0.8
+      },
+      "inputs": [],
+      "children": [
+        [
+          {
+            "id": "b_005",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "INFO", "text": "找到按钮，准备点击" },
+            "inputs": [],
+            "next": null,
+            "x": 60, "y": 240, "breakpoint": false, "comment": ""
+          }
+        ],
+        [
+          {
+            "id": "b_006",
+            "type": "log",
+            "category": "action",
+            "params": { "level": "WARN", "text": "没找到图片，跳过" },
+            "inputs": [],
+            "next": null,
+            "x": 60, "y": 300, "breakpoint": false, "comment": ""
+          }
+        ]
+      ],
+      "next": null,
+      "x": 40, "y": 240, "breakpoint": false, "comment": ""
+    }
+  ],
+  "settings": { "max_recursion": 100, "default_threshold": 0.8 }
+}

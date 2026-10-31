@@ -1,0 +1,152 @@
+{
+  "schema": "1.0",
+  "name": "逻辑示例：while / break / continue / try-catch",
+  "description": "纯逻辑示例，运行后日志可见 k=4、msg=xxx",
+  "global_vars": [],
+  "functions": [],
+  "blocks": [
+    {
+      "id": "b_000",
+      "type": "create_var",
+      "category": "var",
+      "params": { "name": "k", "scope": "local", "type": "num", "init": "0" },
+      "inputs": [], "next": "b_001", "x": 40, "y": 40, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_001",
+      "type": "create_var",
+      "category": "var",
+      "params": { "name": "msg", "scope": "local", "type": "str", "init": "" },
+      "inputs": [], "next": "b_002", "x": 40, "y": 100, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_002",
+      "type": "while",
+      "category": "logic",
+      "params": {},
+      "inputs": [ { "port": "cond", "from": "b_003.result" } ],
+      "children": [
+        [
+          {
+            "id": "b_004", "type": "set_var", "category": "var",
+            "params": { "name": "k", "value": "" },
+            "inputs": [ { "port": "value", "from": "b_005.result" } ],
+            "next": "b_005", "x": 60, "y": 180, "breakpoint": false, "comment": ""
+          },
+          {
+            "id": "b_005", "type": "math", "category": "var",
+            "params": { "op": "+", "a": "$k", "b": "1" },
+            "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+            "next": "b_006", "x": 60, "y": 240, "breakpoint": false, "comment": "k + 1"
+          },
+          {
+            "id": "b_006", "type": "if", "category": "logic",
+            "params": { "branches": [ "main", "else" ] },
+            "inputs": [ { "port": "cond", "from": "b_007.result" } ],
+            "children": [
+              [
+                {
+                  "id": "b_008", "type": "continue", "category": "logic",
+                  "params": {},
+                  "inputs": [], "next": null, "x": 80, "y": 320, "breakpoint": false, "comment": "k==3 跳过"
+                }
+              ],
+              []
+            ],
+            "next": "b_009", "x": 60, "y": 300, "breakpoint": false, "comment": ""
+          },
+          {
+            "id": "b_009", "type": "set_var", "category": "var",
+            "params": { "name": "msg", "value": "" },
+            "inputs": [ { "port": "value", "from": "b_010.result" } ],
+            "next": "b_010", "x": 60, "y": 380, "breakpoint": false, "comment": ""
+          },
+          {
+            "id": "b_010", "type": "concat", "category": "var",
+            "params": { "a": "$msg", "b": "x" },
+            "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+            "next": "b_011", "x": 60, "y": 440, "breakpoint": false, "comment": ""
+          },
+          {
+            "id": "b_011", "type": "if", "category": "logic",
+            "params": { "branches": [ "main", "else" ] },
+            "inputs": [ { "port": "cond", "from": "b_012.result" } ],
+            "children": [
+              [
+                {
+                  "id": "b_013", "type": "break", "category": "logic",
+                  "params": {},
+                  "inputs": [], "next": null, "x": 80, "y": 520, "breakpoint": false, "comment": "k>=4 结束"
+                }
+              ],
+              []
+            ],
+            "next": null, "x": 60, "y": 500, "breakpoint": false, "comment": ""
+          }
+        ]
+      ],
+      "next": "b_014", "x": 40, "y": 160, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_003", "type": "compare", "category": "var",
+      "params": { "op": "<", "a": "$k", "b": "99" },
+      "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+      "next": null, "x": 420, "y": 40, "breakpoint": false, "comment": "k < 99"
+    },
+    {
+      "id": "b_007", "type": "compare", "category": "var",
+      "params": { "op": "==", "a": "$k", "b": "3" },
+      "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+      "next": null, "x": 420, "y": 100, "breakpoint": false, "comment": "k == 3"
+    },
+    {
+      "id": "b_012", "type": "compare", "category": "var",
+      "params": { "op": ">=", "a": "$k", "b": "4" },
+      "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+      "next": null, "x": 420, "y": 160, "breakpoint": false, "comment": "k >= 4"
+    },
+    {
+      "id": "b_014", "type": "log", "category": "action",
+      "params": { "level": "INFO", "text": "循环结果 k=${k} msg=${msg}" },
+      "inputs": [ { "port": "text", "from": "" } ],
+      "next": "b_015", "x": 40, "y": 620, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_015", "type": "try", "category": "logic",
+      "params": {},
+      "inputs": [],
+      "children": [
+        [
+          {
+            "id": "b_016", "type": "math", "category": "var",
+            "params": { "op": "/", "a": "1", "b": "0" },
+            "inputs": [ { "port": "a", "from": "" }, { "port": "b", "from": "" } ],
+            "next": "b_017", "x": 60, "y": 700, "breakpoint": false, "comment": "除零，应被捕获"
+          },
+          {
+            "id": "b_017", "type": "log", "category": "action",
+            "params": { "level": "INFO", "text": "不应执行" },
+            "inputs": [ { "port": "text", "from": "b_016.result" } ],
+            "next": null, "x": 60, "y": 760, "breakpoint": false, "comment": ""
+          }
+        ],
+        [
+          {
+            "id": "b_018", "type": "log", "category": "action",
+            "params": { "level": "WARN", "text": "" },
+            "inputs": [ { "port": "text", "from": "b_015.error_msg" } ],
+            "next": null, "x": 60, "y": 840, "breakpoint": false, "comment": "输出异常信息"
+          }
+        ]
+      ],
+      "next": "b_019", "x": 40, "y": 680, "breakpoint": false, "comment": ""
+    },
+    {
+      "id": "b_019", "type": "log", "category": "action",
+      "params": { "level": "INFO", "text": "逻辑示例完成" },
+      "inputs": [ { "port": "text", "from": "" } ],
+      "next": null, "x": 40, "y": 920, "breakpoint": false, "comment": ""
+    }
+  ],
+  "settings": { "max_recursion": 100, "default_threshold": 0.8 }
+}
