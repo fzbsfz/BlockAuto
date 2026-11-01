@@ -21,6 +21,38 @@ namespace BlockAuto
 
         /// <summary>正在等用户按键（主窗口据此临时让出快捷键，比如 F5）。</summary>
         public static bool Capturing;
+        private static KeyPicker _capturingPicker;
+
+        /// <summary>
+        /// 由主窗口 ProcessCmdKey 转发：不管焦点在哪个控件，按键都能被捕获。
+        /// 返回 true 表示这次按键已被捕获/取消，调用方不要再处理。
+        /// </summary>
+        public static bool HandleGlobalKey(Keys keyData)
+        {
+            KeyPicker p = _capturingPicker;
+            if (p == null) return false;
+            if (keyData == Keys.Escape) { p.EndCapture(true); return true; }
+            Keys code = keyData & Keys.KeyCode;
+            if (code == Keys.ControlKey || code == Keys.Menu || code == Keys.ShiftKey ||
+                code == Keys.LWin || code == Keys.RWin || code == Keys.LControlKey ||
+                code == Keys.RControlKey || code == Keys.LShiftKey || code == Keys.RShiftKey)
+                return true;   // 只按了修饰键，等主键
+
+            string name = KeyCatalog.FromKeys(code);
+            if (name.Length == 0)
+            {
+                p._capture.Text = "这个键不支持，换一个…（Esc 取消）";
+                return true;
+            }
+            bool ctrl = (keyData & Keys.Control) == Keys.Control;
+            bool alt = (keyData & Keys.Alt) == Keys.Alt;
+            bool shift = (keyData & Keys.Shift) == Keys.Shift;
+            p.LoadValue(KeyCatalog.BuildSpec(ctrl, alt, shift, false, name));
+            p.EndCapture(false);
+            EventHandler h = p.ValueChanged;
+            if (h != null) h(p, EventArgs.Empty);
+            return true;
+        }
 
         public event EventHandler ValueChanged;
 
@@ -95,6 +127,7 @@ namespace BlockAuto
             if (_capturing) return;
             _capturing = true;
             Capturing = true;
+            _capturingPicker = this;
             _capture.Text = "请按下要按的键…（Esc 取消）";
             _capture.ForeColor = Theme.Danger;
             Focus();
@@ -106,6 +139,7 @@ namespace BlockAuto
         {
             _capturing = false;
             Capturing = false;
+            if (_capturingPicker == this) _capturingPicker = null;
             _capture.Text = cancelled ? "⌨ 点这里，然后按下要按的键" : "⌨ 重新按一次（当前：" + KeyCatalog.Display(Value) + "）";
             _capture.ForeColor = Theme.Accent;
             Invalidate();
@@ -118,7 +152,13 @@ namespace BlockAuto
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (_capturing)
+            if (_capturing && HandleGlobalKey(e.KeyData))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+            if (false)
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;

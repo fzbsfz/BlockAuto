@@ -222,8 +222,15 @@ namespace BlockAuto
         {
             c.BackColor = Theme.IsLight ? Color.White : PanelAlt;
             c.ForeColor = Text;
-            c.FlatStyle = FlatStyle.Flat;
             c.Font = UiFont(9f, FontStyle.Regular);
+            if (Theme.IsLight)
+            {
+                // 浅色下用系统标准外观：否则自绘下拉会没有边框、箭头跑到很远，看着像被裁切
+                c.FlatStyle = FlatStyle.Standard;
+                c.DrawMode = DrawMode.Normal;
+                return;
+            }
+            c.FlatStyle = FlatStyle.Flat;
             c.DrawMode = DrawMode.OwnerDrawFixed;
             c.ItemHeight = 22;
             c.DrawItem += delegate(object s, DrawItemEventArgs e)

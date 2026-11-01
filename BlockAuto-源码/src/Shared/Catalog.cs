@@ -563,6 +563,34 @@ namespace BlockAuto
             return list;
         }
 
+        /// <summary>参数选项的中文显示（左键/单击/重试几次…），避免弹窗里出现 left/click/retry。</summary>
+        public static string ChoiceLabel(string type, string param, string value)
+        {
+            switch (type + "." + param)
+            {
+                case "mouse_click.button": return value == "right" ? "右键" : "左键";
+                case "mouse_click.action": return value == "dblclick" ? "双击" : "单击";
+                case "mouse_click.on_fail":
+                    if (value == "skip") return "跳过这一步";
+                    if (value == "error") return "报错停止";
+                    return "重试几次";
+                case "mouse_click.coord_mode":
+                    if (value == "image") return "自动识图";
+                    if (value == "bound") return "旧版绑定识图";
+                    return "固定坐标";
+                case "if.cond_type": return value == "image" ? "有图片" : "用积木判断";
+                case "create_var.type":
+                    if (value == "str") return "文本";
+                    if (value == "bool") return "真假";
+                    if (value == "array") return "数组";
+                    if (value == "dict") return "字典";
+                    return "数字";
+                case "create_var.scope": return value == "global" ? "全局" : "局部";
+                case "logic_op.op": return value == "or" ? "或" : (value == "not" ? "非" : "且");
+                default: return value;
+            }
+        }
+
         public static List<PortSpec> OutputPorts(Block b)
         {
             BlockInfo info = Get(b.Type);

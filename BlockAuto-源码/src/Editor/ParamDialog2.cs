@@ -32,6 +32,15 @@ namespace BlockAuto
         private Panel _templateRowPanel;
 
         private FlowLayoutPanel _flow;
+
+        /// <summary>下拉项：显示中文，保存英文值。</summary>
+        private sealed class ChoiceItem
+        {
+            public string Key;
+            public string Text;
+            public ChoiceItem(string key, string text) { Key = key; Text = text; }
+            public override string ToString() { return Text; }
+        }
         private readonly List<Panel> _visionRows = new List<Panel>();
         private readonly List<Control> _visionToggles = new List<Control>();
 
@@ -44,7 +53,7 @@ namespace BlockAuto
             _doc = doc;
             _block = block;
             Text = "编辑 - " + Catalog.TitleOf(block.Type);
-            Size = new Size(580, 640);
+            Size = new Size(640, 640);
             MaximizeBox = false;
             MinimizeBox = false;
             BuildUi();
@@ -84,71 +93,7 @@ namespace BlockAuto
             flow.BackColor = Theme.Panel;
             root.Controls.Add(flow, 0, 1);
 
-            BlockInfo info = Catalog.Get(_block.Type);
-            bool simple = !string.Equals(Environment.GetEnvironmentVariable("BLOCKAUTO_PRO"), "1") && !ConfigModeIsPro();
-
-            if (info != null)
-            {
-                foreach (ParamSpec spec in info.Params)
-                {
-                    if (spec.Name == "branches") continue;
-                    if (_block.Type == "mouse_click" && (spec.Name == "x" || spec.Name == "y" || spec.Name == "coord_mode")) continue;
-                    if (_block.Type == "mouse_click" && spec.Name == "template") continue;
-                    // 识图相关参数单独记录：固定坐标模式下隐藏（#5）
-                    bool visionParam = _block.Type == "mouse_click" &&
-                        (spec.Name == "region" || spec.Name == "threshold" || spec.Name == "on_fail" ||
-                         spec.Name == "retries" || spec.Name == "retry_delay");
-                    if (_block.Type == "find_image" && spec.Name == "template") continue;
-
-                    bool advanced = IsAdvancedParam(_block.Type, spec.Name);
-                    int beforeCount = flow.Controls.Count;
-                    if (advanced)
-                    {
-                        AddParam(flow, spec, true);
-                    }
-                    else
-                    {
-                        AddParam(flow, spec, false);
-                    }
-                    if (visionParam)
-                    {
-                        for (int ci = beforeCount; ci < flow.Controls.Count; ci++)
-                        {
-                            Control added = flow.Controls[ci];
-                            Panel p = added as Panel;
-                            if (p != null) _visionRows.Add(p);
-                        }
-                    }
-                }
-            }
-
-            if (_block.Type == "mouse_click") AddCoordinateRow(flow);
-            if (_block.Type == "mouse_click") AddTemplateRow(flow, info);
-            if (_block.Type == "find_image") AddTemplateRow(flow, info);
-
-            if (info == null || (info.Params.Count == 0 && _block.Type != "mouse_click"))
-            {
-                flow.Controls.Add(Ui.Label("该积木没有可编辑参数。"));
-            }
-
-            if (_advancedRows.Count > 0)
-            {
-                _advToggle = new Label();
-                _advToggle.Text = "显示高级参数 ▾";
-                _advToggle.ForeColor = Theme.TextDim;
-                _advToggle.Font = Theme.UiFont(9f, FontStyle.Underline);
-                _advToggle.AutoSize = true;
-                _advToggle.Cursor = Cursors.Hand;
-                _advToggle.Margin = new Padding(2, 10, 0, 0);
-                _advToggle.Click += delegate
-                {
-                    _advVisible = !_advVisible;
-                    foreach (Panel row in _advancedRows) row.Visible = _advVisible;
-                    _advToggle.Text = (_advVisible ? "隐藏高级参数 ▴" : "显示高级参数 ▾");
-                };
-                flow.Controls.Add(_advToggle);
-                foreach (Panel row in _advancedRows) row.Visible = false;
-            }
+            BuildBodyInto(flow);
 
             Panel bottom = new Panel();
             bottom.Dock = DockStyle.Bottom;
@@ -208,7 +153,7 @@ namespace BlockAuto
         private void AddParam(FlowLayoutPanel flow, ParamSpec spec, bool advanced)
         {
             Panel row = new Panel();
-            row.Width = 520;
+            row.Width = 580;
             row.Height = 34;
             row.Margin = new Padding(0, 3, 0, 3);
             Label label = new Label();
@@ -246,17 +191,18 @@ namespace BlockAuto
                 ComboBox cb = new ComboBox();
                 cb.DropDownStyle = ComboBoxStyle.DropDownList;
                 Theme.ApplyDarkCombo(cb);
+                string cur = Convert.ToString(current);
+                int idx = 0;
                 foreach (string opt in spec.Options)
                 {
                     if (_block.Type == "create_var" && spec.Name == "type" && IsSimpleMode() && (opt == "dict" || opt == "array")) continue;
-                    cb.Items.Add(opt);
+                    // 显示中文，值仍是原来的英文代码
+                    cb.Items.Add(new ChoiceItem(opt, Catalog.ChoiceLabel(_block.Type, spec.Name, opt)));
+                    if (opt == cur) idx = cb.Items.Count - 1;
                 }
-                string cur = Convert.ToString(current);
-                int idx = cb.Items.IndexOf(cur);
-                if (idx < 0) idx = 0;
-                if (cb.Items.Count > 0) cb.SelectedIndex = idx;
+                if (cb.Items.Count > 0) cb.SelectedIndex = Math.Max(0, Math.Min(idx, cb.Items.Count - 1));
                 cb.Location = new Point(116, 4);
-                cb.Width = 190;
+                cb.Width = 380;
                 row.Controls.Add(cb);
                 _controls[spec.Name] = cb;
                 _kinds[spec.Name] = "choice";
@@ -370,17 +316,29 @@ namespace BlockAuto
                 tb.Location = new Point(116, 4);
                 tb.Width = 130;
                 row.Controls.Add(tb);
-                FlatButton pick = Ui.Button("取色", delegate
+                FlatButton pick = Ui.Button("取色板", delegate
                 {
                     ColorDialog cd = new ColorDialog();
                     cd.Color = DesktopAutomation.ParseColor(tb.Text);
                     if (cd.ShowDialog(this) == DialogResult.OK)
                         tb.Text = "#" + cd.Color.R.ToString("X2") + cd.Color.G.ToString("X2") + cd.Color.B.ToString("X2");
                 });
-                pick.Width = 60;
+                pick.Width = 66;
                 pick.Height = 26;
                 pick.Location = new Point(252, 4);
                 row.Controls.Add(pick);
+
+                // 去屏幕上吸一下真实颜色（找色/取色最常用）
+                FlatButton eyedrop = Ui.Button("吸取颜色", delegate
+                {
+                    Color? c = ScreenColorPicker.Pick(this);
+                    if (c == null) return;
+                    tb.Text = "#" + c.Value.R.ToString("X2") + c.Value.G.ToString("X2") + c.Value.B.ToString("X2");
+                });
+                eyedrop.Width = 76;
+                eyedrop.Height = 26;
+                eyedrop.Location = new Point(322, 4);
+                row.Controls.Add(eyedrop);
                 Panel swatch = new Panel();
                 swatch.BackColor = DesktopAutomation.ParseColor(tb.Text);
                 swatch.Location = new Point(318, 5);
@@ -433,6 +391,138 @@ namespace BlockAuto
 
         // ---------------------------- 点击坐标 ----------------------------
 
+        /// <summary>
+        /// 鼠标点击的参数顺序：先选坐标来源；自动识图时把「识别模板/区域/相似度」放最前面（主要功能），
+        /// 再是按键/动作、失败处理、延时偏移。选项全部显示中文。
+        /// </summary>
+        private void BuildClickDialog(FlowLayoutPanel flow)
+        {
+            AddCoordinateRow(flow);
+
+            bool imageMode = _coordMode == "image" || _coordBound;
+            if (imageMode)
+            {
+                AddTemplateRow(flow, Catalog.Get("mouse_click"));
+                AddVisionParams(flow);
+            }
+
+            AddSectionRow(flow, "按键 / 动作");
+            AddParam(flow, Catalog.Get("mouse_click").Param("button"), false);
+            AddParam(flow, Catalog.Get("mouse_click").Param("action"), false);
+            AddParam(flow, Catalog.Get("mouse_click").Param("offset"), true);
+            AddParam(flow, Catalog.Get("mouse_click").Param("delay_after"), false);
+        }
+
+        /// <summary>切换坐标来源后重建参数区（识图设置随之出现/消失）。</summary>
+        private void RebuildBody()
+        {
+            if (_flow == null) return;
+            _flow.SuspendLayout();
+            _flow.Controls.Clear();
+            _controls.Clear();
+            _kinds.Clear();
+            _advancedRows.Clear();
+            _advToggle = null;
+            _templateLabel = null;
+            _templateRowPanel = null;
+            BuildBodyInto(_flow);
+            _flow.ResumeLayout();
+            FitToContent();
+        }
+
+        /// <summary>构建参数区（切换坐标来源时会整体重建一次）。</summary>
+        private void BuildBodyInto(FlowLayoutPanel flow)
+        {
+            BlockInfo info = Catalog.Get(_block.Type);
+            bool simple = !string.Equals(Environment.GetEnvironmentVariable("BLOCKAUTO_PRO"), "1") && !ConfigModeIsPro();
+
+            if (info != null)
+            {
+                foreach (ParamSpec spec in info.Params)
+                {
+                    if (spec.Name == "branches") continue;
+                    // 鼠标点击整块参数自己排（识图放前面），这里全部跳过
+                    if (_block.Type == "mouse_click") continue;
+                    // 识图相关参数单独记录：固定坐标模式下隐藏（#5）
+                    bool visionParam = _block.Type == "mouse_click" &&
+                        (spec.Name == "region" || spec.Name == "threshold" || spec.Name == "on_fail" ||
+                         spec.Name == "retries" || spec.Name == "retry_delay");
+                    if (_block.Type == "find_image" && spec.Name == "template") continue;
+
+                    bool advanced = IsAdvancedParam(_block.Type, spec.Name);
+                    int beforeCount = flow.Controls.Count;
+                    if (advanced)
+                    {
+                        AddParam(flow, spec, true);
+                    }
+                    else
+                    {
+                        AddParam(flow, spec, false);
+                    }
+                    if (visionParam)
+                    {
+                        for (int ci = beforeCount; ci < flow.Controls.Count; ci++)
+                        {
+                            Control added = flow.Controls[ci];
+                            Panel p = added as Panel;
+                            if (p != null) _visionRows.Add(p);
+                        }
+                    }
+                }
+            }
+
+            if (_block.Type == "mouse_click") BuildClickDialog(flow);
+            if (_block.Type == "find_image") AddTemplateRow(flow, info);
+
+            if (info == null || (info.Params.Count == 0 && _block.Type != "mouse_click"))
+            {
+                flow.Controls.Add(Ui.Label("该积木没有可编辑参数。"));
+            }
+
+            if (_advancedRows.Count > 0)
+            {
+                _advToggle = new Label();
+                _advToggle.Text = "显示高级参数 ▾";
+                _advToggle.ForeColor = Theme.TextDim;
+                _advToggle.Font = Theme.UiFont(9f, FontStyle.Underline);
+                _advToggle.AutoSize = true;
+                _advToggle.Cursor = Cursors.Hand;
+                _advToggle.Margin = new Padding(2, 10, 0, 0);
+                _advToggle.Click += delegate
+                {
+                    _advVisible = !_advVisible;
+                    foreach (Panel row in _advancedRows) row.Visible = _advVisible;
+                    _advToggle.Text = (_advVisible ? "隐藏高级参数 ▴" : "显示高级参数 ▾");
+                };
+                flow.Controls.Add(_advToggle);
+                foreach (Panel row in _advancedRows) row.Visible = false;
+            }
+
+        }
+
+        private void AddSectionRow(FlowLayoutPanel flow, string text)
+        {
+            Label l = new Label();
+            l.Text = text;
+            l.ForeColor = Theme.TextDim;
+            l.Font = Theme.UiFont(9f, FontStyle.Bold);
+            l.AutoSize = true;
+            l.Margin = new Padding(2, 10, 0, 2);
+            flow.Controls.Add(l);
+        }
+
+        /// <summary>识图三件套：区域 / 相似度 / 失败处理与重试。</summary>
+        private void AddVisionParams(FlowLayoutPanel flow)
+        {
+            BlockInfo info = Catalog.Get("mouse_click");
+            AddSectionRow(flow, "识别设置");
+            AddParam(flow, info.Param("region"), false);
+            AddParam(flow, info.Param("threshold"), false);
+            AddParam(flow, info.Param("on_fail"), false);
+            AddParam(flow, info.Param("retries"), true);
+            AddParam(flow, info.Param("retry_delay"), true);
+        }
+
         private void AddCoordinateRow(FlowLayoutPanel flow)
         {
             object mode = _block.Param("coord_mode", "recorded");
@@ -449,7 +539,7 @@ namespace BlockAuto
             }
 
             Panel row = new Panel();
-            row.Width = 520;
+            row.Width = 580;
             row.Height = 40;
             Label label = new Label();
             label.Text = "坐标来源";
@@ -502,17 +592,17 @@ namespace BlockAuto
 
             imageBtn.Click += delegate
             {
+                if (_coordMode == "image") return;
                 _coordMode = "image";
                 _coordBound = false;
-                UpdateCoordLabel();
-                UpdateVisionVisibility();
+                RebuildBody();
             };
             fixedBtn.Click += delegate
             {
+                if (_coordMode == "recorded" && !_coordBound) return;
                 _coordMode = "recorded";
                 _coordBound = false;
-                UpdateCoordLabel();
-                UpdateVisionVisibility();
+                RebuildBody();
             };
             _modeButtons = new FlatButton[] { fixedBtn, imageBtn };
 
@@ -586,7 +676,7 @@ namespace BlockAuto
             _templateValue = Json.GetString(_block.Params, "template", "");
 
             Panel row = new Panel();
-            row.Width = 520;
+            row.Width = 580;
             row.Height = 96;
             row.Margin = new Padding(0, 3, 0, 3);
             _templateRowPanel = row;
@@ -742,7 +832,12 @@ namespace BlockAuto
                     }
                     if (kind == "number") value = (double)((NumericUpDown)c).Value;
                     else if (kind == "bool") value = ((CheckBox)c).Checked;
-                    else if (kind == "choice") value = Convert.ToString(((ComboBox)c).SelectedItem);
+                    else if (kind == "choice")
+                    {
+                        object sel = ((ComboBox)c).SelectedItem;
+                        ChoiceItem ci = sel as ChoiceItem;
+                        value = ci != null ? ci.Key : Convert.ToString(sel);
+                    }
                     else if (kind == "offset")
                     {
                         string s = ((TextBox)c).Text.Replace("，", ",");

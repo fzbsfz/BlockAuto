@@ -424,7 +424,7 @@ namespace BlockAuto
             _pauseButton.Enabled = false;
             _stepButton = SmallButton("单步", delegate { StepPrimary(); });
 
-            FlatButton shot = SmallButton("◎ 截图位置", delegate { CapturePositionForSelection(); });
+            FlatButton shot = SmallButton("◎ 截图", delegate { CapturePositionForSelection(); });
             shot.Width = Theme.Px(100);
             shot.ForeColor = Theme.Accent;
             shot.BackColor = Theme.Mix(Theme.Panel, Theme.Accent, 0.10f);
@@ -546,7 +546,7 @@ namespace BlockAuto
             AddMenu(menu, "当…时循环", delegate { _canvas.AddBlockType("while"); });
             AddMenu(menu, "循环 N 次", delegate { _canvas.AddBlockType("for_count"); });
             menu.Items.Add(new ToolStripSeparator());
-            AddMenu(menu, "◎ 截图位置（框选取点）", delegate { CapturePositionForSelection(); });
+            AddMenu(menu, "◎ 截图（框选取点）", delegate { CapturePositionForSelection(); });
             AddMenu(menu, "📷 截图取图（存为识图模板，高级）", delegate { CaptureTemplateForSelection(); });
             menu.Show(anchor, new Point(0, anchor.Height + 2));
         }
@@ -1068,11 +1068,11 @@ namespace BlockAuto
         }
 
 
-        /// <summary>「截图位置」：框选屏幕上要点的目标，把选区中心写成点击坐标。</summary>
+        /// <summary>「截图」：框选屏幕上要点的目标，把选区中心写成点击坐标。</summary>
         private void OnCapturePosition(Block b)
         {
             if (b == null) return;
-            Rectangle r = RoiPickerForm.Pick(this, "截图位置：框选要点击的目标（取选区中心）");
+            Rectangle r = RoiPickerForm.Pick(this, "截图：框选要点击的目标（取选区中心）");
             if (r.Width < 2 || r.Height < 2) return;
             int cx = r.Left + r.Width / 2;
             int cy = r.Top + r.Height / 2;
@@ -1083,28 +1083,28 @@ namespace BlockAuto
             _logger.Write(new LogEntry
             {
                 Level = LogLevel.Info,
-                Source = "截图位置",
+                Source = "截图",
                 Message = "第 " + (BlockIndex(b) + 1) + " 步取到坐标 (" + cx + ", " + cy + ")"
             });
-            _statusLeft.Text = "已取到坐标 (" + cx + ", " + cy + ")";
+            _statusLeft.Text = "已截图取到坐标 (" + cx + ", " + cy + ")";
             _canvas.NotifyDocumentChanged();
             RefreshSidePanel();
             ShowDrawer(true);
         }
 
-        /// <summary>工具栏「◎ 截图位置」：给当前选中的鼠标点击步骤取坐标。</summary>
+        /// <summary>工具栏「◎ 截图」：给当前选中的鼠标点击步骤取坐标。</summary>
         private void CapturePositionForSelection()
         {
             if (_doc == null) return;
             Block b = _canvas != null ? _canvas.SelectedBlock : null;
             if (b == null || b.Type != "mouse_click")
             {
-                _statusLeft.Text = "先在左边选中一个「鼠标点击」步骤，再点截图位置";
+                _statusLeft.Text = "先在左边选中一个「鼠标点击」步骤，再点截图";
                 MessageBox.Show(this,
-                    "请先选中一个「鼠标点击」步骤，再点「◎ 截图位置」。"
+                    "请先选中一个「鼠标点击」步骤，再点「◎ 截图」。"
                     + Environment.NewLine + Environment.NewLine
                     + "框选屏幕上要点击的目标，程序会把选区中心记成点击坐标。",
-                    "截图位置", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    "截图", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             OnCapturePosition(b);
@@ -1278,7 +1278,11 @@ namespace BlockAuto
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (KeyPicker.Capturing) return false;   // 正在“按下要按的键”，快捷键先让路
+            if (KeyPicker.Capturing)
+            {
+                // 正在“按下要按的键”：所有按键都交给键位选择器，快捷键先让路
+                if (KeyPicker.HandleGlobalKey(keyData)) return true;
+            }
             if (keyData == (Keys.Control | Keys.S))
             {
                 SaveDocument(false);

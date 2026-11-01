@@ -94,7 +94,7 @@ namespace BlockAuto
         public event Action<Block> RecordClickRequested;
         /// <summary>要求为这一步“截图取图”（高级：框选模板，供自动识图用）。</summary>
         public event Action<Block> CaptureTemplateRequested;
-        /// <summary>要求为这一步“截图位置”：框选屏幕，用选区中心作为点击坐标。</summary>
+        /// <summary>要求为这一步“截图”：框选屏幕，用选区中心作为点击坐标。</summary>
         public event Action<Block> CapturePositionRequested;
 
         public BlockCanvas()
@@ -443,7 +443,7 @@ namespace BlockAuto
         }
 
         /// <summary>把容器内部步骤用左侧竖线和底色“包”起来，直观体现包含关系。</summary>
-        /// <summary>取这一步的“截图位置”缩略图（按路径缓存，文件失联就忽略）。</summary>
+        /// <summary>取这一步的“截图”缩略图（按路径缓存，文件失联就忽略）。</summary>
         private Image LoadThumb(Block b)
         {
             if (b == null || b.Type != "mouse_click" || _doc == null) return null;
@@ -703,7 +703,7 @@ namespace BlockAuto
             List<KeyValuePair<Rectangle, string>> hits = BuildDetailHits(b, d);
             int pillTop = d.Bottom - DetailPad / 2 - PillRows(b, InnerPillWidth(d)) * (PillHeight + PillGap);
 
-            // 「截图位置」存下来的目标截图：一眼看出这一步点的是哪个按钮
+            // 「截图」存下来的目标截图：一眼看出这一步点的是哪个按钮
             int textLeft = d.X + 8;
             int textWidth = d.Width - 16;
             Image thumb = LoadThumb(b);
@@ -746,7 +746,7 @@ namespace BlockAuto
                 case "dblclick": return "双击";
                 case "mode_fixed": return "固定坐标";
                 case "mode_image": return "自动识图（高级）";
-                case "shotpos": return "◎ 截图位置";
+                case "shotpos": return "◎ 截图";
                 case "record": return "记录位置";
                 case "clearpt": return "清除坐标";
                 case "shot": return "截图取图（高级）";
@@ -1941,7 +1941,7 @@ namespace BlockAuto
             AddMenu(menu, block.IsContainer ? "展开/收起内部步骤" : "展开/收起详情", delegate { ToggleExpanded(block); });
             if (block.Type == "mouse_click")
             {
-                AddMenu(menu, "◎ 截图位置（框选取点）", delegate { _selected = block; Action<Block> h = CapturePositionRequested; if (h != null) h(block); });
+                AddMenu(menu, "◎ 截图（框选取点）", delegate { _selected = block; Action<Block> h = CapturePositionRequested; if (h != null) h(block); });
                 AddMenu(menu, "清除这一步的坐标", delegate
                 {
                     PushUndo();

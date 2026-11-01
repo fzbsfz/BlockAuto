@@ -33,7 +33,7 @@ namespace BlockAuto
         }
 
         /// <summary>
-        /// 「截图位置」用：截取坐标点周围一小块存成图，作为“这一步点的是哪个东西”的凭证。
+        /// 「截图」用：截取坐标点周围一小块存成图，作为“这一步点的是哪个东西”的凭证。
         /// 返回相对路径，失败返回 null。
         /// </summary>
         public static string SaveThumbAroundPoint(ScriptDocument doc, int x, int y, int size)

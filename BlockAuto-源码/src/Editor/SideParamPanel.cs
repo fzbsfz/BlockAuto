@@ -153,7 +153,7 @@ namespace BlockAuto
             posLabel.Margin = new Padding(2, 2, 0, 4);
             _flow.Controls.Add(posLabel);
 
-            _flow.Controls.Add(WideButton("◎ 截图位置", delegate
+            _flow.Controls.Add(WideButton("◎ 截图", delegate
             {
                 Action<Block> h = CapturePositionRequested;
                 if (h != null) h(_block);
@@ -504,19 +504,20 @@ namespace BlockAuto
                 cb.DropDownStyle = ComboBoxStyle.DropDownList;
                 Theme.ApplyDarkCombo(cb);
                 cb.Width = Theme.Px(216);
+                string curValue = Convert.ToString(cur);
+                int idx = 0;
                 foreach (string opt in spec.Options)
                 {
                     if (_block.Type == "create_var" && spec.Name == "type" && (opt == "dict")) continue;
-                    cb.Items.Add(opt);
+                    cb.Items.Add(new ComboItem(opt, Catalog.ChoiceLabel(_block.Type, spec.Name, opt)));
+                    if (opt == curValue) idx = cb.Items.Count - 1;
                 }
-                string curText = Convert.ToString(cur);
-                int idx = cb.Items.IndexOf(curText);
-                if (idx < 0) idx = 0;
-                if (cb.Items.Count > 0) cb.SelectedIndex = idx;
+                if (cb.Items.Count > 0) cb.SelectedIndex = Math.Max(0, Math.Min(idx, cb.Items.Count - 1));
                 cb.SelectedIndexChanged += delegate
                 {
                     if (_applying || cb.SelectedItem == null) return;
-                    SetParam(spec.Name, Convert.ToString(cb.SelectedItem));
+                    ComboItem item = cb.SelectedItem as ComboItem;
+                    SetParam(spec.Name, item != null ? item.Key : Convert.ToString(cb.SelectedItem));
                 };
                 cb.Margin = new Padding(2, 0, 0, 6);
                 _flow.Controls.Add(cb);
@@ -593,6 +594,38 @@ namespace BlockAuto
                 box.Margin = new Padding(2, 0, 0, 6);
                 box.Leave += delegate { ApplyText(spec.Name, box.Text); };
                 _flow.Controls.Add(box);
+                return;
+            }
+
+            if (spec.Kind == "rgb")
+            {
+                AddSection(spec.Label);
+                TextBox tb = MakeText(Convert.ToString(cur));
+                tb.Width = Theme.Px(120);
+                tb.Leave += delegate { ApplyText(spec.Name, tb.Text); };
+                _flow.Controls.Add(tb);
+
+                FlowLayoutPanel row = HRow();
+                row.Controls.Add(WideButton("吸取颜色", delegate
+                {
+                    Color? picked = ScreenColorPicker.Pick(FindForm());
+                    if (picked == null) return;
+                    string hex = "#" + picked.Value.R.ToString("X2") + picked.Value.G.ToString("X2") + picked.Value.B.ToString("X2");
+                    tb.Text = hex;
+                    ApplyText(spec.Name, hex);
+                }));
+                row.Controls.Add(WideButton("取色板", delegate
+                {
+                    using (ColorDialog cd = new ColorDialog())
+                    {
+                        cd.Color = DesktopAutomation.ParseColor(tb.Text);
+                        if (cd.ShowDialog(FindForm()) != DialogResult.OK) return;
+                        string hex = "#" + cd.Color.R.ToString("X2") + cd.Color.G.ToString("X2") + cd.Color.B.ToString("X2");
+                        tb.Text = hex;
+                        ApplyText(spec.Name, hex);
+                    }
+                }));
+                _flow.Controls.Add(row);
                 return;
             }
 
@@ -709,7 +742,7 @@ namespace BlockAuto
         }
 
         public event Action<Block> RecordRequested;
-        /// <summary>抽屉里点「◎ 截图位置」：由主窗口框选取点。</summary>
+        /// <summary>抽屉里点「◎ 截图」：由主窗口框选取点。</summary>
         public event Action<Block> CapturePositionRequested;
         public event Action<Block> EditBlockRequested;
 
