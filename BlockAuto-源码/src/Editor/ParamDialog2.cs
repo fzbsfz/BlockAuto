@@ -330,7 +330,7 @@ namespace BlockAuto
                 picker.Width = 300;
                 picker.Value = Convert.ToString(current);
                 picker.ValueChanged += delegate { _controls[spec.Name] = picker; };
-                row.Height = 108;
+                row.Height = 152;
                 row.Controls.Add(picker);
                 _controls[spec.Name] = picker;
                 _kinds[spec.Name] = "key";

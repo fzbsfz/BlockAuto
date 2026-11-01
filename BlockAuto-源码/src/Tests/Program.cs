@@ -70,6 +70,7 @@ namespace BlockAuto
             ImageConditionTests();
             AutoImageClickTests();
             BranchConditionTests();
+            RecorderIdTests();
 
             Console.WriteLine();
             Console.WriteLine("结果：通过 " + _pass + " 项，失败 " + _fail + " 项");
@@ -1159,6 +1160,46 @@ namespace BlockAuto
             Check(KeyCatalog.All.Count > 50, "常用键位清单非空", KeyCatalog.All.Count.ToString());
 
             try { Directory.Delete(dir, true); } catch { }
+        }
+
+        // ---------------------------- v1.3 录制/嵌套 ----------------------------
+
+        private static void RecorderIdTests()
+        {
+            Section("录制产物：批量创建不撞 id、能直接运行");
+
+            // 复现录制器的批量创建：先 NewBlock 一批，再一次性插入文档
+            ScriptDocument d = new ScriptDocument();
+            List<Block> batch = new List<Block>();
+            Block c1 = d.NewBlock("mouse_click");
+            c1.Params["x"] = 640d; c1.Params["y"] = 360d;
+            batch.Add(c1);
+            Block k1 = d.NewBlock("key_type");
+            k1.Params["text"] = "hello";
+            batch.Add(k1);
+            Block k2 = d.NewBlock("key_press");
+            k2.Params["key"] = "enter";
+            batch.Add(k2);
+
+            Check(c1.Id == k1.Id, "未编号前批量积木会撞 id（复现根因）", c1.Id + " / " + k1.Id);
+            d.AssignNewIds(batch);
+            Check(c1.Id != k1.Id && k1.Id != k2.Id, "AssignNewIds 后 id 唯一", c1.Id + "," + k1.Id + "," + k2.Id);
+
+            foreach (Block b in batch) d.Blocks.Add(b);
+            Check(d.Validate().Count == 0, "编号后结构校验通过", string.Join(";", d.Validate().ToArray()));
+
+            MockAutomation auto = new MockAutomation();
+            MemoryLog log = new MemoryLog();
+            EngineResult r = RunDoc(d, auto, log);
+            Check(r.Status == EngineStatus.Completed, "录制产物可直接运行", r.Message);
+            bool clicked = false, typed = false, pressed = false;
+            foreach (string call in auto.Calls)
+            {
+                if (call.StartsWith("mouse_click|640,360")) clicked = true;
+                if (call.StartsWith("key_type|hello")) typed = true;
+                if (call.StartsWith("key_press|enter")) pressed = true;
+            }
+            Check(clicked && typed && pressed, "录制的点击/输入/按键都执行了", string.Join(";", auto.Calls.ToArray()));
         }
 
         // ---------------------------- 模板匹配 ----------------------------

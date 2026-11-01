@@ -1,6 +1,6 @@
 {
   "schema": "1.0",
-  "name": "界面自检：按键选择器 / 多行文本 / 分支条件",
+  "name": "界面自检：按键捕获 / 多行文本 / 分支条件",
   "description": "仅用于界面自检截图：所有键鼠动作都禁用，运行无副作用",
   "global_vars": [],
   "functions": [],
@@ -9,46 +9,66 @@
       "id": "b_101",
       "type": "mouse_click",
       "category": "action",
-      "disabled": true,
       "params": {
         "coord_mode": "recorded",
         "x": 640,
         "y": 360,
         "button": "left",
         "action": "click",
-        "offset": [ 0, 0 ],
+        "offset": [
+          0,
+          0
+        ],
         "delay_after": 0.2
       },
       "inputs": [],
       "next": "b_102",
-      "x": 40, "y": 40, "breakpoint": false, "comment": "截图位置示例"
+      "x": 40,
+      "y": 40,
+      "breakpoint": false,
+      "comment": "截图位置示例",
+      "disabled": true
     },
     {
       "id": "b_102",
       "type": "key_press",
       "category": "action",
-      "disabled": true,
-      "params": { "key": "ctrl+f5" },
+      "params": {
+        "key": "ctrl+f5"
+      },
       "inputs": [],
       "next": "b_103",
-      "x": 40, "y": 100, "breakpoint": false, "comment": "按键选择器示例"
+      "x": 40,
+      "y": 40,
+      "breakpoint": false,
+      "comment": "按键捕获示例",
+      "disabled": true
     },
     {
       "id": "b_103",
       "type": "key_type",
       "category": "action",
-      "disabled": true,
-      "params": { "text": "第一行：这是多行输入\n第二行：侧栏也要能看全\n第三行：换行不能丢" },
+      "params": {
+        "text": "第一行：这是多行输入\n第二行：侧栏也要能看全\n第三行：换行不能丢"
+      },
       "inputs": [],
       "next": "b_104",
-      "x": 40, "y": 160, "breakpoint": false, "comment": "多行文本"
+      "x": 40,
+      "y": 40,
+      "breakpoint": false,
+      "comment": "多行文本",
+      "disabled": true
     },
     {
       "id": "b_104",
       "type": "if",
       "category": "logic",
       "params": {
-        "branches": [ "main", "elif1", "else" ],
+        "branches": [
+          "main",
+          "elif1",
+          "else"
+        ],
         "cond_type": "image",
         "template": "templates/submit.png",
         "region": "active",
@@ -64,10 +84,16 @@
             "id": "b_105",
             "type": "log",
             "category": "action",
-            "params": { "level": "INFO", "text": "有图片分支" },
+            "params": {
+              "level": "INFO",
+              "text": "有图片分支"
+            },
             "inputs": [],
             "next": null,
-            "x": 60, "y": 240, "breakpoint": false, "comment": ""
+            "x": 40,
+            "y": 40,
+            "breakpoint": false,
+            "comment": ""
           }
         ],
         [
@@ -75,10 +101,16 @@
             "id": "b_106",
             "type": "log",
             "category": "action",
-            "params": { "level": "WARN", "text": "否则如果：找色分支" },
+            "params": {
+              "level": "WARN",
+              "text": "否则如果：找色分支"
+            },
             "inputs": [],
             "next": null,
-            "x": 60, "y": 300, "breakpoint": false, "comment": ""
+            "x": 40,
+            "y": 40,
+            "breakpoint": false,
+            "comment": ""
           }
         ],
         [
@@ -86,16 +118,28 @@
             "id": "b_107",
             "type": "log",
             "category": "action",
-            "params": { "level": "ERROR", "text": "都没命中" },
+            "params": {
+              "level": "ERROR",
+              "text": "都没命中"
+            },
             "inputs": [],
             "next": null,
-            "x": 60, "y": 360, "breakpoint": false, "comment": ""
+            "x": 40,
+            "y": 40,
+            "breakpoint": false,
+            "comment": ""
           }
         ]
       ],
       "next": null,
-      "x": 40, "y": 240, "breakpoint": false, "comment": ""
+      "x": 40,
+      "y": 240,
+      "breakpoint": false,
+      "comment": ""
     }
   ],
-  "settings": { "max_recursion": 100, "default_threshold": 0.8 }
+  "settings": {
+    "max_recursion": 100,
+    "default_threshold": 0.8
+  }
 }

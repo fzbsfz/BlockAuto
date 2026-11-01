@@ -1007,7 +1007,7 @@ namespace BlockAuto
             if (show && (_codeVisible || _drawerManualHide)) return;
             if (show == _drawerOpen && _sidePanel.Visible == show) return;
             _drawerOpen = show;
-            int w = Theme.Px(300);
+            int w = Theme.Px(320);
             if (show)
             {
                 _sidePanel.Width = w;
@@ -1051,7 +1051,7 @@ namespace BlockAuto
         private void LayoutDrawer()
         {
             if (_sidePanel == null || _contentPanel == null) return;
-            int w = Theme.Px(300);
+            int w = Theme.Px(320);
             int h = Math.Max(0, _contentPanel.ClientSize.Height);
 
             _sidePanel.Size = new Size(w, h);
@@ -1076,7 +1076,9 @@ namespace BlockAuto
             if (r.Width < 2 || r.Height < 2) return;
             int cx = r.Left + r.Width / 2;
             int cy = r.Top + r.Height / 2;
-            _canvas.SetRecordedPoint(b, cx, cy);
+            // 把框选到的那块画面也存下来：展开行/抽屉里能看到“这一步点的是哪个东西”
+            string shot = TemplateCapture.SaveThumbAroundPoint(_doc, cx, cy, Math.Max(48, Math.Min(r.Width, r.Height) + 16));
+            _canvas.SetRecordedPoint(b, cx, cy, shot);
             _dirty = true;
             _logger.Write(new LogEntry
             {
@@ -1276,6 +1278,7 @@ namespace BlockAuto
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (KeyPicker.Capturing) return false;   // 正在“按下要按的键”，快捷键先让路
             if (keyData == (Keys.Control | Keys.S))
             {
                 SaveDocument(false);

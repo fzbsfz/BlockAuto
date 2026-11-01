@@ -32,6 +32,34 @@ namespace BlockAuto
             }
         }
 
+        /// <summary>
+        /// 「截图位置」用：截取坐标点周围一小块存成图，作为“这一步点的是哪个东西”的凭证。
+        /// 返回相对路径，失败返回 null。
+        /// </summary>
+        public static string SaveThumbAroundPoint(ScriptDocument doc, int x, int y, int size)
+        {
+            if (doc == null) return null;
+            try
+            {
+                Rectangle vs = System.Windows.Forms.SystemInformation.VirtualScreen;
+                int half = Math.Max(8, size / 2);
+                Rectangle r = new Rectangle(x - half, y - half, half * 2, half * 2);
+                Rectangle safe = Rectangle.Intersect(r, vs);
+                if (safe.Width < 4 || safe.Height < 4) return null;
+
+                string dir = Path.Combine(doc.Directory, "templates");
+                Directory.CreateDirectory(dir);
+                string name = "click-" + DateTime.Now.ToString("HHmmss-fff") + ".png";
+                using (Bitmap bmp = ScreenCapture.Capture(safe))
+                    bmp.Save(Path.Combine(dir, name), ImageFormat.Png);
+                return "templates/" + name;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         /// <summary>框选一块屏幕区域并保存；用户取消或失败返回 null。</summary>
         public static string PickAndSave(IWin32Window owner, ScriptDocument doc, string title)
         {

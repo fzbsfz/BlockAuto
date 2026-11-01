@@ -340,8 +340,8 @@ namespace BlockAuto
 
                 string type = IfConditionType(spec, i);
                 FlowLayoutPanel row = HRow();
-                row.Controls.Add(ToggleW("用积木判断", 96, type == "cond", delegate { SetIfConditionType(spec, i, "cond"); }));
-                row.Controls.Add(ToggleW("有图片", 76, type == "image", delegate { SetIfConditionType(spec, i, "image"); }));
+                row.Controls.Add(ToggleW("积木判断", 84, type == "cond", delegate { SetIfConditionType(spec, i, "cond"); }));
+                row.Controls.Add(ToggleW("有图片", 72, type == "image", delegate { SetIfConditionType(spec, i, "image"); }));
                 row.Controls.Add(ToggleW("找色", 64, type == "color", delegate { SetIfConditionType(spec, i, "color"); }));
                 _flow.Controls.Add(row);
 

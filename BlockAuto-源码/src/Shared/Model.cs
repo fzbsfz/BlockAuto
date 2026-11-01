@@ -163,6 +163,30 @@ namespace BlockAuto
             return "b_" + NextIdNumber().ToString("000");
         }
 
+        /// <summary>
+        /// 给一批「还没加入文档」的积木分配唯一 id。
+        /// NewBlock() 依赖文档里已有的积木编号，批量创建（例如录制）时会出现重复 id，
+        /// 运行时校验会判「积木 ID 重复」而拒绝执行，所以批量创建后必须调用一次。
+        /// </summary>
+        public void AssignNewIds(List<Block> blocks)
+        {
+            if (blocks == null || blocks.Count == 0) return;
+            int seq = NextIdNumber();
+            foreach (Block b in blocks)
+            {
+                if (b == null) continue;
+                b.Id = "b_" + (seq++).ToString("000");
+                // 容器分支里的子积木也要一起换，避免和别的积木撞号
+                foreach (BranchBody br in b.Branches)
+                {
+                    foreach (Block child in br.Blocks)
+                    {
+                        child.Id = "b_" + (seq++).ToString("000");
+                    }
+                }
+            }
+        }
+
         /// <summary>根据目录信息创建一个带默认参数与分支的积木。</summary>
         public Block NewBlock(string type)
         {

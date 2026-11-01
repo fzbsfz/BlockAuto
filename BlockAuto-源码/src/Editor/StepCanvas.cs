@@ -50,6 +50,8 @@ namespace BlockAuto
             public Block Container;
             /// <summary>分支标题行专用：分支名（main / else / elif1 …）。</summary>
             public string BranchName = "";
+            /// <summary>分支标题行专用：条件条的可点区域（点它设置判断条件）。</summary>
+            public Rectangle ConditionChip;
         }
 
         private ScriptDocument _doc;
@@ -75,6 +77,7 @@ namespace BlockAuto
         private DropSpot _dropSpot;
         private Point _dragPoint;
 
+        private readonly Dictionary<string, Image> _thumbCache = new Dictionary<string, Image>();
         private KeyPicker _inlineKey;
         private TextBox _inlineText;
         private string _inlineBlockId = "";
@@ -333,6 +336,12 @@ namespace BlockAuto
                 else h = RowHeight + detail;
 
                 r.Bounds = new Rectangle(x, y, w, h);
+                if (r.IsBranch)
+                {
+                    int tagW = Math.Min(w - 8, Theme.Px(58));
+                    r.ConditionChip = new Rectangle(x + 4 + tagW + Theme.Px(6), y + 2,
+                        Math.Max(Theme.Px(60), w - (4 + tagW + 6) - 8), BranchRowHeight - 4);
+                }
                 r.Chevron = new Rectangle(x + 4, y + (RowHeight - ChevronSize) / 2, ChevronSize, ChevronSize);
                 if (detail > 0)
                     r.DetailBounds = new Rectangle(x + 26, y + RowHeight, w - 32, detail);
@@ -434,6 +443,30 @@ namespace BlockAuto
         }
 
         /// <summary>把容器内部步骤用左侧竖线和底色“包”起来，直观体现包含关系。</summary>
+        /// <summary>取这一步的“截图位置”缩略图（按路径缓存，文件失联就忽略）。</summary>
+        private Image LoadThumb(Block b)
+        {
+            if (b == null || b.Type != "mouse_click" || _doc == null) return null;
+            object v;
+            if (!b.Params.TryGetValue("pos_shot", out v)) return null;
+            string rel = Convert.ToString(v);
+            if (string.IsNullOrEmpty(rel)) return null;
+            string path;
+            try { path = _doc.ResolveTemplatePath(rel); }
+            catch { return null; }
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+            Image img;
+            if (_thumbCache.TryGetValue(path, out img)) return img;
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                using (MemoryStream ms = new MemoryStream(bytes)) img = Image.FromStream(ms);
+                _thumbCache[path] = img;
+                return img;
+            }
+            catch { return null; }
+        }
+
         private void DrawContainerBoxes(Graphics g)
         {
             for (int i = 0; i < _rows.Count; i++)
@@ -502,7 +535,7 @@ namespace BlockAuto
                 g.FillPath(fill, p);
             GdiText(g, cond, 8.5f, FontStyle.Regular,
                 new RectangleF(chip.X + 8, chip.Y, chip.Width - 12, chip.Height),
-                Theme.Mix(Theme.Accent, Theme.Text, 0.35f),
+                cond.StartsWith("＋") ? Theme.TextDim : Theme.Mix(Theme.Accent, Theme.Text, 0.35f),
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
             // 判断区与执行区之间的细线
@@ -540,7 +573,7 @@ namespace BlockAuto
                 if (src != null) return "条件来自「" + Catalog.TitleOf(src.Type) + "」";
                 return "条件：已连线";
             }
-            return "还没设条件";
+            return "＋ 点击这里设置判断条件";
         }
 
         private void DrawStepRow(Graphics g, Row r, int index)
@@ -669,12 +702,27 @@ namespace BlockAuto
             Block b = r.Block;
             List<KeyValuePair<Rectangle, string>> hits = BuildDetailHits(b, d);
             int pillTop = d.Bottom - DetailPad / 2 - PillRows(b, InnerPillWidth(d)) * (PillHeight + PillGap);
+
+            // 「截图位置」存下来的目标截图：一眼看出这一步点的是哪个按钮
+            int textLeft = d.X + 8;
+            int textWidth = d.Width - 16;
+            Image thumb = LoadThumb(b);
+            if (thumb != null)
+            {
+                int sz = Math.Max(1, Math.Min(40, Math.Min(d.Height - 12, 40)));
+                Rectangle dst = new Rectangle(d.X + 8, d.Y + 6, sz, sz);
+                g.DrawImage(thumb, dst);
+                using (Pen pen = new Pen(Theme.Border)) g.DrawRectangle(pen, dst);
+                textLeft = dst.Right + 8;
+                textWidth = d.Right - textLeft - 8;
+            }
+
             float y = d.Y + 6;
-            foreach (string line in DetailLines(b))
+            foreach (string line2 in DetailLines(b))
             {
                 if (y + 15 > pillTop - 2) break;
-                GdiText(g, line, 8.5f, FontStyle.Regular,
-                    new RectangleF(d.X + 8, y, d.Width - 16, 15), Theme.TextDim,
+                GdiText(g, line2, 8.5f, FontStyle.Regular,
+                    new RectangleF(textLeft, y, textWidth, 15), Theme.TextDim,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
                 y += 15;
             }
@@ -788,7 +836,7 @@ namespace BlockAuto
             int rows = WrapDetailButtons(b, inner).Count;
             int textLines = Math.Min(DetailLines(b).Count, 2);
             int h = DetailPad + textLines * 15 + rows * (PillHeight + PillGap) + DetailPad;
-            if (b.Type == "key_press") h = Math.Max(h, 172);
+            if (b.Type == "key_press") h = Math.Max(h, 196);
             else if (b.Type == "key_type" || b.Type == "comment") h = Math.Max(h, 148);
             return h;
         }
@@ -1069,6 +1117,11 @@ namespace BlockAuto
                 ShowContextMenu(Cursor.Position, row.Block);
                 return;
             }
+            if (row.IsBranch && row.ConditionChip.Contains(p))
+            {
+                ShowBranchConditionMenu(row, Cursor.Position);
+                return;
+            }
 
             // 展开行里的快捷按钮：先匹配按钮，命中就不算“整行点击”
             if (row.Expanded && row.DetailBounds.Contains(p))
@@ -1296,6 +1349,15 @@ namespace BlockAuto
             else
             {
                 _expanded.Clear();          // 手风琴：一次只展开一个
+                // 容器里的积木要连同祖先容器一起展开，否则展开后随父容器一起被收走
+                List<Block> chain = new List<Block>();
+                Block parent = _doc != null ? _doc.ParentContainerOf(b) : null;
+                while (parent != null)
+                {
+                    chain.Insert(0, parent);
+                    parent = _doc.ParentContainerOf(parent);
+                }
+                foreach (Block anc in chain) _expanded.Add(anc.Id);
                 _expanded.Add(b.Id);
             }
             Rebuild();
@@ -1602,11 +1664,18 @@ namespace BlockAuto
 
         public void SetRecordedPoint(Block b, int x, int y)
         {
+            SetRecordedPoint(b, x, y, null);
+        }
+
+        /// <summary>记录坐标；shot 为这一步目标的截图（相对路径），用于在展开行里看到“点的是哪个东西”。</summary>
+        public void SetRecordedPoint(Block b, int x, int y, string shot)
+        {
             if (b == null) return;
             PushUndo();
             b.Params["x"] = (double)x;
             b.Params["y"] = (double)y;
             b.Params["coord_mode"] = "recorded";
+            if (!string.IsNullOrEmpty(shot)) b.Params["pos_shot"] = shot;
             _expanded.Clear();
             _expanded.Add(b.Id);
             Rebuild();
@@ -1736,6 +1805,114 @@ namespace BlockAuto
         public void NotifyDocumentChanged()
         {
             FireChanged();
+        }
+
+        /// <summary>分支条件菜单：选类型 / 直接挂一个判断积木 / 清除。</summary>
+        private void ShowBranchConditionMenu(Row row, Point screenPoint)
+        {
+            Block container = row.Container;
+            if (container == null) return;
+            List<BranchSpec> specs = Catalog.Branches(container);
+            BranchSpec spec = null;
+            foreach (BranchSpec x in specs) if (x.Name == row.BranchName) { spec = x; break; }
+            if (spec == null || spec.ConditionPort == null) return;
+            int index = container.Branches.FindIndex(delegate(BranchBody bb) { return bb.Name == row.BranchName; });
+
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.BackColor = Theme.Panel;
+            menu.ForeColor = Theme.Text;
+            menu.Renderer = new DarkMenuRenderer();
+            menu.ShowImageMargin = false;
+
+            AddMenu(menu, "有图片（截图/模板）…", delegate
+            {
+                SetBranchCondition(container, spec, index, "image");
+                using (TemplateManagerForm f = new TemplateManagerForm(_doc, true))
+                {
+                    if (f.ShowDialog(FindForm()) != DialogResult.OK || string.IsNullOrEmpty(f.SelectedTemplate)) return;
+                    PushUndo();
+                    container.Params[BranchKey(spec, index, "template")] = f.SelectedTemplate;
+                    Rebuild();
+                    FireChanged();
+                }
+            });
+            AddMenu(menu, "找色…", delegate
+            {
+                SetBranchCondition(container, spec, index, "color");
+                using (ColorDialog cd = new ColorDialog())
+                {
+                    if (cd.ShowDialog(FindForm()) != DialogResult.OK) return;
+                    PushUndo();
+                    container.Params[BranchKey(spec, index, "rgb")] =
+                        "#" + cd.Color.R.ToString("X2") + cd.Color.G.ToString("X2") + cd.Color.B.ToString("X2");
+                    Rebuild();
+                    FireChanged();
+                }
+            });
+            menu.Items.Add(new ToolStripSeparator());
+            AddMenu(menu, "放一个「识图」判断积木（自动连线）", delegate
+            {
+                AttachConditionBlock(container, spec, index, "find_image");
+            });
+            AddMenu(menu, "放一个「找色」判断积木（自动连线）", delegate
+            {
+                AttachConditionBlock(container, spec, index, "find_color");
+            });
+            AddMenu(menu, "用已连线的积木判断", delegate
+            {
+                SetBranchCondition(container, spec, index, "cond");
+                MessageBox.Show(FindForm(),
+                    "已切到「用积木判断」：把「比较 / 识图 / 找色」的输出连到这个分支的条件端口即可（专业模式可在参数窗口里连线）。",
+                    "BlockAuto", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            });
+            menu.Items.Add(new ToolStripSeparator());
+            AddMenu(menu, "清除这个分支的条件", delegate
+            {
+                PushUndo();
+                container.Params.Remove("condtype_" + spec.Name);
+                if (index == 0) container.Params["cond_type"] = "cond";
+                Rebuild();
+                FireChanged();
+            });
+            menu.Show(screenPoint);
+        }
+
+        private static string BranchKey(BranchSpec spec, int index, string baseName)
+        {
+            return index == 0 ? baseName : baseName + "_" + spec.Name;
+        }
+
+        private void SetBranchCondition(Block container, BranchSpec spec, int index, string type)
+        {
+            PushUndo();
+            container.Params[index == 0 ? "cond_type" : "condtype_" + spec.Name] = type;
+            if (type == "image" && !container.Params.ContainsKey(BranchKey(spec, index, "template")))
+                container.Params[BranchKey(spec, index, "template")] = "";
+            if (type == "color" && !container.Params.ContainsKey(BranchKey(spec, index, "rgb")))
+                container.Params[BranchKey(spec, index, "rgb")] = "#FF0000";
+            Rebuild();
+            FireChanged();
+        }
+
+        /// <summary>在该分支前面放一个判断积木，并把它的输出连到分支条件端口。</summary>
+        private void AttachConditionBlock(Block container, BranchSpec spec, int index, string blockType)
+        {
+            PushUndo();
+            Block cond = _doc.NewBlock(blockType);
+            _doc.AssignNewIds(new List<Block> { cond });
+            List<Block> owner = _doc.ParentListOf(container);
+            if (owner == null) owner = _doc.Blocks;
+            int at = owner.IndexOf(container);
+            owner.Insert(at < 0 ? owner.Count : at, cond);
+            PinLink link = container.EnsureInput(spec.ConditionPort);
+            link.From = cond.Id + ".found";
+            container.Params[index == 0 ? "cond_type" : "condtype_" + spec.Name] = "cond";
+            _doc.EnsureNextLinks();
+            _selected = cond;
+            Rebuild();
+            EnsureVisible(cond);
+            FireChanged();
+            FireSelection();
         }
 
         // ---------------------------- 右键菜单 ----------------------------

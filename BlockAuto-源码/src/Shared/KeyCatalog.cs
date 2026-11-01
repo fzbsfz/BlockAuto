@@ -128,6 +128,64 @@ namespace BlockAuto
             return key.ToUpperInvariant();
         }
 
+        /// <summary>把 WinForms 的按键换成引擎认识的键名（拿不到就返回空串）。</summary>
+        public static string FromKeys(System.Windows.Forms.Keys key)
+        {
+            System.Windows.Forms.Keys k = key & System.Windows.Forms.Keys.KeyCode;
+            if (k == System.Windows.Forms.Keys.None) return "";
+            int code = (int)k;
+            if (code >= (int)System.Windows.Forms.Keys.A && code <= (int)System.Windows.Forms.Keys.Z)
+                return ((char)('a' + (code - (int)System.Windows.Forms.Keys.A))).ToString();
+            if (code >= (int)System.Windows.Forms.Keys.D0 && code <= (int)System.Windows.Forms.Keys.D9)
+                return (code - (int)System.Windows.Forms.Keys.D0).ToString();
+            if (code >= (int)System.Windows.Forms.Keys.F1 && code <= (int)System.Windows.Forms.Keys.F12)
+                return "f" + (code - (int)System.Windows.Forms.Keys.F1 + 1);
+            switch (k)
+            {
+                case System.Windows.Forms.Keys.Enter: return "enter";
+                case System.Windows.Forms.Keys.Tab: return "tab";
+                case System.Windows.Forms.Keys.Space: return "space";
+                case System.Windows.Forms.Keys.Escape: return "esc";
+                case System.Windows.Forms.Keys.Back: return "backspace";
+                case System.Windows.Forms.Keys.Delete: return "delete";
+                case System.Windows.Forms.Keys.Insert: return "insert";
+                case System.Windows.Forms.Keys.Home: return "home";
+                case System.Windows.Forms.Keys.End: return "end";
+                case System.Windows.Forms.Keys.PageUp: return "pageup";
+                case System.Windows.Forms.Keys.PageDown: return "pagedown";
+                case System.Windows.Forms.Keys.Up: return "up";
+                case System.Windows.Forms.Keys.Down: return "down";
+                case System.Windows.Forms.Keys.Left: return "left";
+                case System.Windows.Forms.Keys.Right: return "right";
+                case System.Windows.Forms.Keys.CapsLock: return "capslock";
+                case System.Windows.Forms.Keys.PrintScreen: return "printscreen";
+                case System.Windows.Forms.Keys.OemMinus: return "minus";
+                case System.Windows.Forms.Keys.Oemplus: return "plus";
+                case System.Windows.Forms.Keys.Oemcomma: return "comma";
+                case System.Windows.Forms.Keys.OemPeriod: return "period";
+                case System.Windows.Forms.Keys.OemQuestion: return "slash";
+                case System.Windows.Forms.Keys.OemSemicolon: return "semicolon";
+                case System.Windows.Forms.Keys.OemQuotes: return "quote";
+                case System.Windows.Forms.Keys.OemOpenBrackets: return "bracketleft";
+                case System.Windows.Forms.Keys.OemCloseBrackets: return "bracketright";
+                case System.Windows.Forms.Keys.OemPipe: return "backslash";
+                case System.Windows.Forms.Keys.Oemtilde: return "grave";
+                default: return "";
+            }
+        }
+
+        /// <summary>修饰键的显示顺序：Ctrl、Alt、Shift、Win。</summary>
+        public static string BuildSpec(bool ctrl, bool alt, bool shift, bool win, string key)
+        {
+            List<string> parts = new List<string>();
+            if (ctrl) parts.Add("ctrl");
+            if (alt) parts.Add("alt");
+            if (shift) parts.Add("shift");
+            if (win) parts.Add("win");
+            if (!string.IsNullOrEmpty(key)) parts.Add(key);
+            return string.Join("+", parts.ToArray());
+        }
+
         /// <summary>校验：能被执行引擎认出来才算合法。</summary>
         public static bool IsValid(string spec)
         {

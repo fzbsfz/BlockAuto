@@ -266,6 +266,7 @@ namespace BlockAuto
 
             int skipped;
             List<Block> blocks = BuildFromActions(effective, _withDelay.Checked, (int)_delay.Value, out skipped);
+            _doc.AssignNewIds(blocks);   // 批量创建时 id 会重复，必须先重新编号
             foreach (Block b in blocks) _target.Add(b);
             AppliedCount = blocks.Count;
             DialogResult = DialogResult.OK;

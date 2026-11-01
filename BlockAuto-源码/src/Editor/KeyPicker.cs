@@ -15,7 +15,12 @@ namespace BlockAuto
         private readonly ComboBox _keys;
         private readonly TextBox _custom;
         private readonly Label _preview;
+        private readonly FlatButton _capture;
         private bool _loading;
+        private bool _capturing;
+
+        /// <summary>正在等用户按键（主窗口据此临时让出快捷键，比如 F5）。</summary>
+        public static bool Capturing;
 
         public event EventHandler ValueChanged;
 
@@ -25,11 +30,19 @@ namespace BlockAuto
             Height = Theme.Px(96);
             Width = Theme.Px(216);
 
+            _capture = Ui.Button("⌨ 点这里，然后按下要按的键", delegate { BeginCapture(); });
+            _capture.Outline = true;
+            _capture.ForeColor = Theme.Accent;
+            _capture.Width = Theme.Px(216);
+            _capture.Height = Theme.Px(30);
+            _capture.Location = new Point(0, 0);
+            Controls.Add(_capture);
+
             FlowLayoutPanel modRow = new FlowLayoutPanel();
             modRow.FlowDirection = FlowDirection.LeftToRight;
             modRow.WrapContents = false;
             modRow.AutoSize = true;
-            modRow.Location = new Point(0, 0);
+            modRow.Location = new Point(0, Theme.Px(34));
             modRow.BackColor = Theme.Panel;
             for (int i = 0; i < KeyCatalog.Modifiers.Length; i++)
             {
@@ -48,7 +61,7 @@ namespace BlockAuto
             _keys.DropDownStyle = ComboBoxStyle.DropDownList;
             Theme.ApplyDarkCombo(_keys);
             _keys.Width = Theme.Px(216);
-            _keys.Location = new Point(0, Theme.Px(28));
+            _keys.Location = new Point(0, Theme.Px(64));
             _keys.Margin = new Padding(0);
             foreach (KeyCatalog.KeyItem item in KeyCatalog.All) _keys.Items.Add(item);
             KeyCatalog.KeyItem custom = new KeyCatalog.KeyItem("", "自定义…");
@@ -59,7 +72,7 @@ namespace BlockAuto
             _custom = new TextBox();
             Theme.ApplyDarkTextBox(_custom);
             _custom.Width = Theme.Px(216);
-            _custom.Location = new Point(0, Theme.Px(56));
+            _custom.Location = new Point(0, Theme.Px(92));
             _custom.Visible = false;
             _custom.TextChanged += delegate { Compose(); };
             Controls.Add(_custom);
@@ -68,10 +81,70 @@ namespace BlockAuto
             _preview.AutoSize = true;
             _preview.ForeColor = Theme.TextDim;
             _preview.Font = Theme.UiFont(8.5f, FontStyle.Regular);
-            _preview.Location = new Point(0, Theme.Px(82));
+            _preview.Location = new Point(0, Theme.Px(120));
             Controls.Add(_preview);
 
-            Height = Theme.Px(104);
+            Height = Theme.Px(146);
+            SetStyle(ControlStyles.Selectable, true);
+            TabStop = true;
+            Click += delegate { BeginCapture(); };
+        }
+
+        private void BeginCapture()
+        {
+            if (_capturing) return;
+            _capturing = true;
+            Capturing = true;
+            _capture.Text = "请按下要按的键…（Esc 取消）";
+            _capture.ForeColor = Theme.Danger;
+            Focus();
+            Select();
+            Invalidate();
+        }
+
+        private void EndCapture(bool cancelled)
+        {
+            _capturing = false;
+            Capturing = false;
+            _capture.Text = cancelled ? "⌨ 点这里，然后按下要按的键" : "⌨ 重新按一次（当前：" + KeyCatalog.Display(Value) + "）";
+            _capture.ForeColor = Theme.Accent;
+            Invalidate();
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            return _capturing || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (_capturing)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                if (e.KeyCode == Keys.Escape) { EndCapture(true); return; }
+                if (e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu || e.KeyCode == Keys.ShiftKey ||
+                    e.KeyCode == Keys.LWin || e.KeyCode == Keys.RWin || e.KeyCode == Keys.LControlKey ||
+                    e.KeyCode == Keys.RControlKey || e.KeyCode == Keys.LShiftKey || e.KeyCode == Keys.RShiftKey)
+                    return;   // 只按了修饰键，等主键
+
+                string name = KeyCatalog.FromKeys(e.KeyCode);
+                if (name.Length == 0)
+                {
+                    _capture.Text = "这个键不支持，换一个…（Esc 取消）";
+                    return;
+                }
+                bool ctrl = (e.Modifiers & Keys.Control) == Keys.Control;
+                bool alt = (e.Modifiers & Keys.Alt) == Keys.Alt;
+                bool shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
+                string spec = KeyCatalog.BuildSpec(ctrl, alt, shift, false, name);
+                LoadValue(spec);
+                EndCapture(false);
+                EventHandler h = ValueChanged;
+                if (h != null) h(this, EventArgs.Empty);
+                return;
+            }
+            base.OnKeyDown(e);
         }
 
         /// <summary>当前值（形如 ctrl+alt+f5），为空表示还没选。</summary>
