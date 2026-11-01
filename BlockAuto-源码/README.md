@@ -1,4 +1,4 @@
-# BlockAuto 键鼠自动化平台（v2.5 动作列表版）
+# BlockAuto 键鼠自动化平台（未发行 1.0 版）
 
 Windows 桌面键鼠自动化工具。**键鼠动作是主角，积木只是把动作串起来的工具**：
 打开就能「录一段 → 生成积木 → 一键运行」，需要判断循环时再从左侧拖积木增强。
@@ -22,13 +22,16 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 # 2. 运行编辑器
 .\bin\BlockAuto.exe
 
-# 3. 运行自测（61 项：引擎语义 / 数据流 / 递归 / 异常 / 调试 / 停止 / 结构校验 / JSON 往返 / 图像识别 / 定时 / 热键解析）
+# 3. 直接打开某个脚本（双击 .block / 文件关联 / 快捷方式都走这条）
+.\bin\BlockAuto.exe .\samples\keymouse_demo.block
+
+# 4. 运行自测（147 项：引擎语义 / 数据流 / 递归 / 异常 / 调试 / 停止 / 结构校验 / JSON 往返 / 图像识别 / 定时 / 热键解析 / 打包 / AI 接口）
 .\bin\BlockAuto.Tests.exe
 
-# 4. 命令行运行脚本
+# 5. 命令行运行脚本（独立运行器，不需要编辑器）
 .\bin\BlockRunner.exe run .\samples\hello.block
 
-# 5. 界面自检：启动主窗口、加载脚本、跑一次、截图、逐个打开弹窗后退出
+# 6. 界面自检：启动主窗口、加载脚本、跑一次、截图、逐个打开弹窗后退出
 .\bin\BlockAuto.exe --uicheck .\docs\screenshots\editor.png .\samples\hello.block
 ```
 
@@ -114,19 +117,22 @@ BlockAuto/
 
 **AI HTTP 接口**（设置中勾选「启用 HTTP 接口」并填 Token 后生效）：
 
-| 接口 | 说明 |
-|---|---|
-| `POST /script/start` `{"script":"a.block","threshold":0.8}` | 启动脚本（复用同一引擎，同脚本并发互斥） |
-| `POST /script/stop` `{"script":"a.block"}` | 停止运行中的脚本 |
-| `GET /script/status?script=a.block` | 运行状态、上次运行时间、活动会话数 |
-| `POST /cap/screenshot` `{"region":"full"}` | 截图，返回 PNG base64 与坐标尺寸 |
-| `POST /cap/findImage` `{"template":"templates/a.png","region":"full","threshold":0.8}` | 识图，返回 found/x/y/confidence |
-| `POST /cap/mouseClick` `{"x":100,"y":200,"button":"left","action":"click"}` | 鼠标点击 |
-| `POST /cap/keyType` `{"text":"你好"}` | 键盘输入 |
-| `GET /script/tree?script=a.block` | 读取积木节点树 JSON |
-| `PUT /script/tree?script=a.block` `{"tree":{...}}` | 校验并写入 `.block` |
-| `GET /log` | 最近日志行 |
-| `GET /health` | 健康检查（同样需要 Token） |
+| 接口 | 白名单动作名 | 说明 |
+|---|---|---|
+| `POST /script/start` `{"script":"a.block","threshold":0.8}` | `script.start` | 启动脚本（复用同一引擎，同脚本并发互斥） |
+| `POST /script/stop` `{"script":"a.block"}` | `script.stop` | 停止运行中的脚本 |
+| `GET /script/status?script=a.block` | `script.status` | 运行状态、上次运行时间、活动会话数 |
+| `POST /cap/screenshot` `{"region":"full"}` | `cap.screenshot` | 截图，返回 PNG base64 与坐标尺寸 |
+| `POST /cap/findImage` `{"template":"templates/a.png","region":"full","threshold":0.8}` | `cap.findImage` | 识图，返回 found/x/y/confidence |
+| `POST /cap/mouseClick` `{"x":100,"y":200,"button":"left","action":"click"}` | `cap.mouseClick` | 鼠标点击 |
+| `POST /cap/keyType` `{"text":"你好"}` | `cap.keyType` | 键盘输入 |
+| `GET /script/tree?script=a.block` | `script.tree` | 读取积木节点树 JSON |
+| `PUT /script/tree?script=a.block` `{"tree":{...}}` | `script.tree` | 校验并写入 `.block` |
+| `GET /log` | `log.read` | 最近日志行 |
+| `GET /health` | `health` | 健康检查（同样需要 Token） |
+
+> URL 路径是“小写+斜杠”风格，白名单动作名是“点号+驼峰”风格，两套名字容易配错。
+> 从 1.0 起 `GET /health` 的 `actions` 字段会直接返回「路径 ↔ 动作名」对照表，设置页也写了提示，照抄即可。
 
 安全机制：Token 必填（缺失返回 401）；白名单可禁用高危动作；「高危动作需人工确认」开启后，点击/输入会弹出确认框；接口只监听本机回环地址。
 
@@ -257,6 +263,20 @@ v2.5 把识图**并回鼠标点击**：
 
 积木库里原来的「图像识别」分类只剩找色，已改名为 **「识别」**，避免分类名和内容不一致。
 
+## 四·九、1.0 测试意见修复（按《BlockAuto 测试与修改意见》）
+
+| # | 问题 | 处理 |
+|---|---|---|
+| 1 | 打包缺识图模板（打包分享后接收方找不到图） | `CollectTemplates()` 改为通用收集：凡积木参数里带 `template`（鼠标点击 / 有图片判断 / 旧识图积木）都收集；打包预览与 zip 均包含 `templates/` |
+| 2 | 版本号多处不一致（联网窗口 2.0.0、运行器 v1.0） | 收敛为单一常量 `EngineVersion`（`Current=1.0.0` / `Display=1.0` / `Stage=未发行`），联网窗口、运行器 banner、打包使用说明、状态栏右下角全部引用它 |
+| 3 | 命令行 `BlockAuto.exe 某脚本.block` 不生效 | `Main` 解析参数中的 `.block`/`.json` 并直接加载，标题栏显示脚本名；文件关联/快捷方式双击都可用 |
+| 4 | AI 接口动作名与 URL 路径两套命名易配错 | `/health` 新增 `actions` 字段返回「路径 ↔ 白名单动作名」对照；设置页白名单处加了说明 |
+| 5 | 展开行与右侧抽屉内容重复 | 展开行只保留**一行摘要 + 快捷按钮**，参数编辑统一走右侧抽屉 / 完整参数窗口 |
+| 6 | 录制面板按钮用 `●`/`■` 符号 | 改成纯文字「开始录制 / 暂停 / 停止录制」，状态行也去掉符号 |
+| 7 | 抽屉「坐标来源」两个单选挤在一起、与「记录位置」语义不分 | 改成两张**单选卡片**（圆点 + 标题 + 一行说明），固定坐标/自动识图分开展示 |
+| 8 | 非专业模式下画布/代码视图空白无提示 | 简洁模式禁止切代码视图并给状态栏提示「代码视图需在专业模式启用」；代码内容为空时显示占位说明；进代码视图立刻收起参数抽屉 |
+| 9 | 识图找不到图时重试节奏偏慢 | 重试间隔默认 1 秒 → **0.3 秒**（仍可按积木单独设置）；`recursive_find` 示例改用「当前窗口」区域 + 0.3 秒退避，实测 7.7 秒 → 3.3 秒 |
+
 ## 四·七、高分屏自适应（v2.4 起，v2.5 加强）
 
 v2.4 起程序**始终按 DPI 感知运行**，不再依赖系统虚拟化；v2.5 继续加强：
@@ -368,7 +388,7 @@ templates/          # 脚本用到的所有模板图片（相对路径）
 
 ## 十一、自测覆盖
 
-`BlockAuto.Tests.exe`（139 项断言，全部通过）：
+`BlockAuto.Tests.exe`（147 项断言，全部通过）：
 
 - JSON 解析/序列化（中文、转义、小数、嵌套）
 - 基础执行：变量、for 循环、比较、if/else、字符串插值
@@ -385,8 +405,8 @@ templates/          # 脚本用到的所有模板图片（相对路径）
 - v2.0/v2.1/v2.2：键鼠置顶、简洁模式可见性、记录坐标忽略连线、绑定识图坐标、active 区域、失败积木定位、禁用步骤跳过、等待归入键鼠组、.block 关联可写可撤销
 - v2.5：鼠标点击自带识图（命中即点、跳过、报错、重试次数）、旧脚本「识图+点击」自动合并、识图积木隐藏但旧脚本兼容、分类改名
 - 版本比较、多尺度识图
-- 脚本打包：模板收集、zip 内容（脚本/模板/运行器/双击运行/说明）
+- 脚本打包：模板收集（含鼠标点击/有图片判断里的模板）、zip 内容（脚本/模板/运行器/双击运行/说明）、使用说明带统一版本号
 - 录制结果转积木：绝对坐标、中文文本保留
-- AI HTTP：服务启动、401 鉴权、健康检查、启动脚本、脚本树、未知接口
+- AI HTTP：服务启动、401 鉴权、健康检查（含版本号与 actions 对照）、启动脚本、脚本树、未知接口
 
 界面自检（`--uicheck`）会启动主窗口、加载脚本、实际运行一次、导出画布/代码视图截图，并依次构造 12 个弹窗（含录制、联网、打包）确认无异常，报告写入同名 `.txt`。

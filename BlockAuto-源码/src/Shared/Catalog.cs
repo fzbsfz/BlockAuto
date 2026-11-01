@@ -358,7 +358,7 @@ namespace BlockAuto
             mc.Params.Add(Pa("on_fail", "找不到图时", "choice", "retry").WithOptions("retry", "skip", "error")
                 .WithHint("retry=重试；skip=跳过这一步；error=报错停止"));
             mc.Params.Add(Pa("retries", "重试次数", "number", 3d));
-            mc.Params.Add(Pa("retry_delay", "重试间隔(秒)", "number", 1d));
+            mc.Params.Add(Pa("retry_delay", "重试间隔(秒)", "number", 0.3d).WithHint("识别本身要花时间，间隔越大整段越慢"));
             mc.Params.Add(Pa("delay_after", "点击后延时(秒)", "number", 0.2d).WithHint("0 表示使用全局动作间隔"));
             mc.Params.Add(Pa("x", "记录 X", "text", "").WithHint("点“记录位置”自动获取"));
             mc.Params.Add(Pa("y", "记录 Y", "text", ""));

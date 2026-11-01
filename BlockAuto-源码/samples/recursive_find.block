@@ -53,7 +53,7 @@
                 "params": {
                   "coord_mode": "image",
                   "template": "templates/submit.png",
-                  "region": "full",
+                  "region": "active",
                   "threshold": 0.8,
                   "button": "left",
                   "action": "click",
@@ -92,7 +92,7 @@
                       "id": "b_f9",
                       "type": "sleep",
                       "category": "logic",
-                      "params": { "seconds": 1 },
+                      "params": { "seconds": 0.3 },
                       "inputs": [],
                       "next": "b_f10",
                       "x": 80, "y": 520, "breakpoint": false, "comment": ""

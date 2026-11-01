@@ -781,20 +781,19 @@ namespace BlockAuto
             switch (b.Type)
             {
                 case "mouse_click":
+                    // 展开行只放一行摘要，详细参数统一在右侧「参数」抽屉里改，避免两处重复显示
                     if (ParamText(b, "coord_mode") == "image")
                     {
                         string tpl = ParamText(b, "template");
-                        lines.Add("坐标来源：自动识图     模板：" + (tpl.Length > 0 ? tpl : "（还没截图）"));
-                        lines.Add("识别区域：" + ParamText(b, "region") + "    阈值：" + ParamText(b, "threshold")
-                            + "    找不到图时：" + FailText(b) + "    点击后延时：" + ParamText(b, "delay_after") + " 秒");
+                        lines.Add("自动识图 " + (tpl.Length > 0 ? System.IO.Path.GetFileName(tpl) : "（还没截图）")
+                            + " · 阈值 " + ParamText(b, "threshold") + " · " + FailText(b));
                     }
                     else
                     {
-                        lines.Add("坐标来源：固定坐标     "
-                            + (ParamText(b, "x").Length > 0 ? "(" + ParamText(b, "x") + ", " + ParamText(b, "y") + ")" : "还没记录位置"));
-                        lines.Add("按键：" + (ParamText(b, "button") == "right" ? "右键" : "左键")
-                            + "    动作：" + (ParamText(b, "action") == "dblclick" ? "双击" : "单击")
-                            + "    偏移：" + ParamText(b, "offset"));
+                        lines.Add((ParamText(b, "x").Length > 0
+                                ? "固定坐标 (" + ParamText(b, "x") + ", " + ParamText(b, "y") + ")"
+                                : "固定坐标（还没记录位置）")
+                            + " · 偏移 " + ParamText(b, "offset"));
                     }
                     break;
                 case "find_image":

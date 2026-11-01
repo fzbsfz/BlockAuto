@@ -787,6 +787,11 @@ namespace BlockAuto
             flow.Controls.Add(Ui.Row(Ui.Label(""), _whitelist, 200));
             _allowed = Ui.TextBox(string.Join(",", config.AllowedActions.ToArray()), false);
             flow.Controls.Add(Ui.Row(Ui.Label("白名单动作"), _allowed, 300));
+            Label actionHint = Ui.Label("动作名用点号+驼峰，例如 cap.findImage；对应接口路径 /cap/findImage。"
+                + "全部动作名可在 GET /health 的 actions 字段里查到，直接照抄即可，别按 URL 猜。");
+            actionHint.ForeColor = Theme.TextDim;
+            actionHint.MaximumSize = new Size(520, 0);
+            flow.Controls.Add(actionHint);
             _confirm = new CheckBox();
             _confirm.Text = "高危动作需人工确认";
             _confirm.ForeColor = Theme.Text;

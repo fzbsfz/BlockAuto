@@ -39,7 +39,7 @@ namespace BlockAuto
             Label t1 = Ui.Section("版本更新检测");
             t1.Location = new Point(16, 48);
             Controls.Add(t1);
-            Label cur = Ui.Label("当前版本：" + EngineVersion.Current + "    检查地址：" + (string.IsNullOrEmpty(config.UpdateCheckUrl) ? "（未配置，请在设置中填写）" : config.UpdateCheckUrl));
+            Label cur = Ui.Label("当前版本：" + EngineVersion.Full + "    检查地址：" + (string.IsNullOrEmpty(config.UpdateCheckUrl) ? "（未配置，请在设置中填写）" : config.UpdateCheckUrl));
             cur.Location = new Point(16, 76);
             cur.MaximumSize = new Size(720, 0);
             Controls.Add(cur);

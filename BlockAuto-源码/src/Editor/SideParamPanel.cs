@@ -142,11 +142,9 @@ namespace BlockAuto
         {
             bool imageMode = ParamText("coord_mode") == "image" || ParamText("coord_mode") == "bound";
 
-            AddSection("坐标来源");
-            FlowLayoutPanel row0 = HRow();
-            row0.Controls.Add(Toggle("固定坐标", !imageMode, delegate { SetMode("recorded"); }));
-            row0.Controls.Add(Toggle("自动识图", imageMode, delegate { SetMode("image"); }));
-            _flow.Controls.Add(row0);
+            AddSection("坐标来源（二选一）");
+            _flow.Controls.Add(RadioTile("固定坐标", "用「记录位置」记下的屏幕坐标", !imageMode, delegate { SetMode("recorded"); }));
+            _flow.Controls.Add(RadioTile("自动识图", "截图取图，运行时自动找这个位置", imageMode, delegate { SetMode("image"); }));
 
             if (imageMode)
             {
@@ -205,7 +203,7 @@ namespace BlockAuto
                 wait.Minimum = 0;
                 wait.Maximum = 3600;
                 wait.Increment = 0.5m;
-                wait.Value = ToDecimal(ParamText("retry_delay").Length > 0 ? ParamText("retry_delay") : "1");
+                wait.Value = ToDecimal(ParamText("retry_delay").Length > 0 ? ParamText("retry_delay") : "0.3");
                 wait.Width = Theme.Px(90);
                 wait.BackColor = Theme.IsLight ? Color.White : Theme.PanelAlt;
                 wait.ForeColor = Theme.Text;
@@ -734,6 +732,76 @@ namespace BlockAuto
             b.Margin = new Padding(2, 0, 4, 4);
             b.Outline = true;
             return b;
+        }
+
+        /// <summary>
+        /// 「单选小卡片」：圆点 + 标题 + 说明两行排布。原来的两个小按钮挤在同一行，
+        /// 和下面的「记录位置」语义也分不清，改成卡片后一眼看出是二选一。
+        /// </summary>
+        private Control RadioTile(string title, string hint, bool active, EventHandler onClick)
+        {
+            RadioTileControl tile = new RadioTileControl();
+            tile.Text = title;
+            tile.Hint = hint;
+            tile.Active = active;
+            tile.Width = Theme.Px(216);
+            tile.Height = Theme.Px(46);
+            tile.Margin = new Padding(2, 0, 0, 6);
+            tile.Click += onClick;
+            return tile;
+        }
+
+        private sealed class RadioTileControl : Control
+        {
+            public string Hint = "";
+            public bool Active;
+            private bool _hover;
+
+            public RadioTileControl()
+            {
+                Cursor = Cursors.Hand;
+                Font = Theme.UiFont(9.5f, FontStyle.Bold);
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            }
+
+            protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+            protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                Color back = Active ? Theme.Mix(Theme.Panel, Theme.Accent, 0.10f)
+                    : (_hover ? Theme.Mix(Theme.Panel, Theme.Accent, 0.04f) : Theme.Panel);
+                using (System.Drawing.Drawing2D.GraphicsPath p =
+                    Theme.RoundedRect(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 5f))
+                {
+                    using (SolidBrush b = new SolidBrush(back)) g.FillPath(b, p);
+                    using (Pen pen = new Pen(Active ? Theme.Accent : Theme.Border)) g.DrawPath(pen, p);
+                }
+
+                // 单选圆点
+                float d = Theme.Px(13);
+                float cx = Theme.Px(10);
+                float cy = Height / 2f - d / 2f;
+                using (Pen ring = new Pen(Active ? Theme.Accent : Theme.TextDim, 1.4f))
+                    g.DrawEllipse(ring, cx, cy, d, d);
+                if (Active)
+                {
+                    using (SolidBrush dot = new SolidBrush(Theme.Accent))
+                        g.FillEllipse(dot, cx + d / 2.6f, cy + d / 2.6f, d / 3.2f, d / 3.2f);
+                }
+
+                int textX = (int)(cx + d + Theme.Px(8));
+                TextRenderer.DrawText(g, Text, Font,
+                    new Rectangle(textX, Theme.Px(4), Width - textX - Theme.Px(6), Theme.Px(20)),
+                    Active ? Theme.Accent : Theme.Text,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(g, Hint, Theme.UiFontCached(8.5f, FontStyle.Regular),
+                    new Rectangle(textX, Theme.Px(23), Width - textX - Theme.Px(6), Theme.Px(19)),
+                    Theme.TextDim,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ namespace BlockAuto
         {
             try { Console.OutputEncoding = new UTF8Encoding(false); }
             catch { }
-            Console.WriteLine("BlockRunner - BlockAuto 独立运行器 v1.0");
+            Console.WriteLine("BlockRunner - BlockAuto 独立运行器 v" + EngineVersion.Full);
             Console.WriteLine();
 
             if (args.Length == 0)

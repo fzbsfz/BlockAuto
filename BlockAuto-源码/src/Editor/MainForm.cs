@@ -238,6 +238,7 @@ namespace BlockAuto
         private ToolStripStatusLabel _statusBlocks;
         private ToolStripStatusLabel _statusScript;
         private ToolStripStatusLabel _statusAi;
+        private ToolStripStatusLabel _statusVersion;
         private FlowLayoutPanel _paletteFlow;
         private TextBox _search;
         private ListBox _functionList;
@@ -1189,6 +1190,8 @@ namespace BlockAuto
             _statusBlocks = new ToolStripStatusLabel("");
             _statusZoom = new ToolStripStatusLabel("步骤 0");
             _statusAi = new ToolStripStatusLabel("AI 接口关闭");
+            _statusVersion = new ToolStripStatusLabel("v" + EngineVersion.Display);
+            _statusVersion.ForeColor = Theme.TextDim;
             _statusLeft.Spring = false;
             _statusScript.Spring = true;
             _statusScript.TextAlign = ContentAlignment.MiddleRight;
@@ -1197,6 +1200,7 @@ namespace BlockAuto
             strip.Items.Add(_statusBlocks);
             strip.Items.Add(_statusZoom);
             strip.Items.Add(_statusAi);
+            strip.Items.Add(_statusVersion);
             return strip;
         }
 
@@ -1329,6 +1333,15 @@ namespace BlockAuto
             }
         }
 
+        /// <summary>立即收起参数抽屉（不走滑出动画）。</summary>
+        private void HideDrawerNow()
+        {
+            if (_sidePanel == null) return;
+            if (_drawerTimer != null) _drawerTimer.Stop();
+            _drawerOpen = false;
+            _sidePanel.Visible = false;
+        }
+
         internal void HideSidePanelForCheck()
         {
             _drawerTimer.Stop();
@@ -1336,6 +1349,19 @@ namespace BlockAuto
             if (_sidePanel != null) _sidePanel.Visible = false;
         }
 
+        /// <summary>自检：简洁模式下切代码视图必须被挡住（画布仍在、给出状态提示）。</summary>
+        internal string SimpleModeCodeGuardForCheck()
+        {
+            string oldMode = _config.UiMode;
+            _config.UiMode = "simple";
+            ApplyMode();
+            SetCodeView(true);
+            bool canvasStill = _canvas.Visible && !_codeView.Visible;
+            string status = _statusLeft.Text;
+            _config.UiMode = oldMode;
+            ApplyMode();
+            return (canvasStill ? "OK" : "FAIL") + " 画布仍可见=" + canvasStill + " 提示=" + status;
+        }
         internal void ExpandPaletteForCheck() { SetPaletteExpanded(true); }
 
         internal void CollapsePaletteForCheck() { SetPaletteExpanded(false); }
@@ -1349,6 +1375,9 @@ namespace BlockAuto
 
         internal void ShowCodeForCheck()
         {
+            // 自检要能截到代码视图：先切到专业模式再切页签
+            _config.UiMode = "pro";
+            ApplyMode();
             SetCodeView(true);
         }
 
@@ -1412,6 +1441,38 @@ namespace BlockAuto
             ScriptDocument d = ScriptDocument.Load(path);
             ApplyDoc(d, path, false);
             _canvas.FitToView();
+        }
+
+        /// <summary>命令行走 .block 直接打开（双击脚本 / 快捷方式 / 文件关联）。</summary>
+        internal void OpenStartupFile(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            try
+            {
+                ScriptDocument d = ScriptDocument.Load(path);
+                ApplyDoc(d, path, false);
+                _config.AddRecent(path);
+                _canvas.FitToView();
+                _statusLeft.Text = "已打开 " + Path.GetFileName(path);
+                _logger.Write(new LogEntry
+                {
+                    Level = LogLevel.Info,
+                    Source = "编辑器",
+                    Message = "命令行打开脚本：" + path
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.Write(new LogEntry
+                {
+                    Level = LogLevel.Error,
+                    Source = "编辑器",
+                    Message = "命令行打开脚本失败：" + path + "，" + ex.Message
+                });
+                MessageBox.Show(this,
+                    "命令行指定的脚本打不开：" + Environment.NewLine + path + Environment.NewLine + Environment.NewLine + ex.Message,
+                    "BlockAuto", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void NewDocument()
@@ -1555,18 +1616,28 @@ namespace BlockAuto
         private void RefreshCode()
         {
             if (_doc == null || _codeView == null) return;
-            _codeView.Text = CodeGen.Generate(_doc);
+            string text = CodeGen.Generate(_doc);
+            if (string.IsNullOrEmpty(text) || text.Trim().Length == 0)
+                text = "// 这个脚本还没有可预览的步骤。" + Environment.NewLine
+                    + "// 先在动作列表里加几步（或点「录制」录一段），这里会实时生成只读伪代码。";
+            _codeView.Text = text;
         }
 
         private void SetCodeView(bool code)
         {
+            // 简洁模式没有「代码」页签：直接拒绝并提示，避免出现一块什么都没有的白板
+            if (code && _config.IsSimpleMode)
+            {
+                _statusLeft.Text = "代码视图需在专业模式启用：更多 ▾ → 切换到专业模式";
+                return;
+            }
             _codeVisible = code;
             _canvas.Visible = !code;
             _codeView.Visible = code;
             if (code)
             {
                 _codeView.BringToFront();
-                ShowDrawer(false);
+                HideDrawerNow();
             }
             if (code)
             {

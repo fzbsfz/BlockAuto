@@ -67,14 +67,14 @@ namespace BlockAuto
             _list.HorizontalScrollbar = true;
             Controls.Add(_list);
 
-            _start = Ui.Button("● 开始录制", delegate { StartRecording(); });
+            _start = Ui.Button("开始录制", delegate { StartRecording(); });
             _start.Width = 110;
             _start.Location = new Point(16, 378);
             _pause = Ui.Button("暂停", delegate { TogglePause(); });
             _pause.Width = 80;
             _pause.Location = new Point(132, 378);
             _pause.Enabled = false;
-            _stop = Ui.Button("■ 停止", delegate { StopRecording(); });
+            _stop = Ui.Button("停止录制", delegate { StopRecording(); });
             _stop.Width = 80;
             _stop.Location = new Point(218, 378);
             _stop.Enabled = false;
@@ -168,7 +168,7 @@ namespace BlockAuto
             string state = _recorder.IsPaused ? "已暂停" : "录制中";
             // 状态行同时显示步数与耗时，录制过程中每 0.5 秒刷新
             if (_status != null && !_status.IsDisposed)
-                _status.Text = "● " + state + " · 已录 " + _recorder.Count + " 步 · " + sec + " 秒";
+                _status.Text = state + " · 已录 " + _recorder.Count + " 步 · " + sec + " 秒";
         }
 
         private void StartRecording()
@@ -182,7 +182,7 @@ namespace BlockAuto
                 _pause.Enabled = true;
                 _stop.Enabled = true;
                 _pause.Text = "暂停";
-                _status.Text = "● 录制中…";
+                _status.Text = "录制中…";
                 _status.ForeColor = Theme.Danger;
                 _ok.Enabled = false;
                 RefreshList();
@@ -200,14 +200,14 @@ namespace BlockAuto
             {
                 _recorder.Resume();
                 _pause.Text = "暂停";
-                _status.Text = "● 录制中…";
+                _status.Text = "录制中…";
                 _status.ForeColor = Theme.Danger;
             }
             else
             {
                 _recorder.Pause();
                 _pause.Text = "继续";
-                _status.Text = "‖ 已暂停";
+                _status.Text = "已暂停（点“继续”恢复）";
                 _status.ForeColor = Theme.Warning;
             }
         }
@@ -239,7 +239,7 @@ namespace BlockAuto
             }
             _list.EndUpdate();
             if (top < _list.Items.Count) _list.TopIndex = top;
-            if (_recorder.IsRecording) _status.Text = (_pause.Text == "继续" ? "‖ 已暂停" : "● 录制中…") + "  已记录 " + count + " 步";
+            if (_recorder.IsRecording) _status.Text = (_pause.Text == "继续" ? "已暂停（点“继续”恢复）" : "录制中…") + "  已记录 " + count + " 步";
         }
 
         private void ApplyRecording()

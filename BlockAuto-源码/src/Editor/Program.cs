@@ -42,13 +42,34 @@ namespace BlockAuto
             };
             try
             {
-                Application.Run(new MainForm());
+                MainForm form = new MainForm();
+                // 支持“BlockAuto.exe 某脚本.block”直接打开（文件关联/快捷方式都靠它）
+                string startup = FindStartupScript(args);
+                if (startup != null) form.OpenStartupFile(startup);
+                Application.Run(form);
             }
             catch (Exception ex)
             {
                 MessageBox.Show("启动失败：\n" + ex.Message + "\n\n" + ex.StackTrace, "BlockAuto",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>从命令行参数里挑出要打开的脚本（第一个 .block / .json）。</summary>
+        internal static string FindStartupScript(string[] args)
+        {
+            if (args == null) return null;
+            foreach (string a in args)
+            {
+                if (string.IsNullOrEmpty(a)) continue;
+                if (a.StartsWith("-") || a.StartsWith("/")) continue;
+                string ext = Path.GetExtension(a);
+                if (!string.Equals(ext, ".block", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase)) continue;
+                try { return Path.GetFullPath(a); }
+                catch { return a; }
+            }
+            return null;
         }
 
         /// <summary>诊断：按屏幕坐标截取指定区域，用于确认截图没有缩放/偏移。</summary>
@@ -217,12 +238,20 @@ namespace BlockAuto
                             form.DrawToBitmap(codeBmp, new Rectangle(0, 0, form.Width, form.Height));
                             codeBmp.Save(outPath + ".code.png", ImageFormat.Png);
                         }
+                        // 再抓一张真实屏幕：RichTextBox 在 DrawToBitmap 里不一定画得出来，用屏幕图核对
+                        try
+                        {
+                            using (Bitmap shot = ScreenCapture.Capture(form.Bounds))
+                                shot.Save(outPath + ".code.screen.png", ImageFormat.Png);
+                        }
+                        catch { }
                         File.WriteAllText(outPath + ".code.txt", form.CodeTextForCheck());
                         form.LoadCanvasTabForCheck();
                         Application.DoEvents();
                         StringBuilder report = new StringBuilder();
                         report.AppendLine("OK " + form.LayoutInfo() + " title=" + form.Text);
                         report.AppendLine("RUN " + form.RunStateForCheck());
+                        report.AppendLine("CODEFIX " + form.SimpleModeCodeGuardForCheck());
                         RunDialogChecks(form, outPath, report);
                         File.WriteAllText(logPath, report.ToString());
                     }

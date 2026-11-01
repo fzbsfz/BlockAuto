@@ -6,7 +6,7 @@
   鼠标左键单击 自动识图 templates/submit.png（区域=active） 偏移 [0, 0]
   等待 0.5 秒
   输入文本 "hello BlockAuto"
-  如果 null {
+  如果 有图片 templates/submit.png {
     日志 INFO "找到按钮，准备点击"
   }
   否则 {

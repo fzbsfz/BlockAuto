@@ -21,18 +21,25 @@ namespace BlockAuto
             public List<string> Warnings = new List<string>();
         }
 
-        /// <summary>找出脚本引用的模板相对路径（去重）。</summary>
+        /// <summary>
+        /// 找出脚本引用的模板相对路径（去重）。
+        /// v1.0 起不再限定「识图积木」：识图已并入鼠标点击，判断积木的「有图片」也会用到模板，
+        /// 所以统一按「参数里有 template 且非空、非绝对路径」收集。
+        /// </summary>
         public static List<string> CollectTemplates(ScriptDocument doc)
         {
             List<string> list = new List<string>();
             HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (Block b in doc.AllBlocks())
             {
-                if (b.Type != "find_image") continue;
+                if (b.Params == null) continue;
+                object raw;
+                if (!b.Params.TryGetValue("template", out raw)) continue;
                 string tpl = Json.GetString(b.Params, "template", "");
                 if (string.IsNullOrEmpty(tpl)) continue;
                 if (Path.IsPathRooted(tpl)) continue;
-                string norm = tpl.Replace('\\', '/');
+                string norm = tpl.Replace('\\', '/').TrimStart('/');
+                if (norm.Length == 0) continue;
                 if (seen.Add(norm)) list.Add(norm);
             }
             list.Sort(StringComparer.OrdinalIgnoreCase);
@@ -125,6 +132,7 @@ namespace BlockAuto
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("BlockAuto 脚本包");
             sb.AppendLine("=================");
+            sb.AppendLine("BlockAuto 版本：" + EngineVersion.Full);
             sb.AppendLine();
             sb.AppendLine("脚本名称：" + doc.Name);
             if (!string.IsNullOrEmpty(doc.Description)) sb.AppendLine("说明：" + doc.Description);

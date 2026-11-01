@@ -1010,7 +1010,7 @@ namespace BlockAuto
             int retries = (int)Json.GetNumber(b.Params, "retries", 3);
             if (retries < 0) retries = 0;
             if (retries > 200) retries = 200;
-            double wait = Json.GetNumber(b.Params, "retry_delay", 1);
+            double wait = Json.GetNumber(b.Params, "retry_delay", 0.3);
             if (wait < 0) wait = 0;
             if (wait > 3600) wait = 3600;
 

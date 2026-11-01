@@ -612,6 +612,36 @@ namespace BlockAuto
             Check(File.Exists(Path.Combine(extract, "BlockRunner.exe")), "包含运行器");
             Check(File.Exists(Path.Combine(extract, "双击运行.cmd")), "包含双击运行脚本");
             Check(File.Exists(Path.Combine(extract, "使用说明.txt")), "包含使用说明");
+
+            // v1.0：识图并入鼠标点击后，打包必须还能收集到「鼠标点击」里引用的模板
+            ScriptDocument d2 = new ScriptDocument();
+            d2.Name = "自动识图点击打包";
+            Block click = Add(d2, d2.Blocks, "mouse_click");
+            click.Params["coord_mode"] = "image";
+            click.Params["template"] = "templates/a.png";
+            click.Params["region"] = "active";
+            click.Params["threshold"] = 0.8d;
+            Block ifb = Add(d2, d2.Blocks, "if");
+            ifb.Params["cond_type"] = "image";
+            ifb.Params["template"] = "templates/b.png";
+            using (Bitmap bmp = new Bitmap(8, 8)) { bmp.Save(Path.Combine(tplDir, "b.png"), ImageFormat.Png); }
+
+            List<string> tpls2 = ScriptPackager.CollectTemplates(d2);
+            Check(tpls2.Count == 2, "鼠标点击/判断里的模板都被收集", string.Join(",", tpls2.ToArray()));
+            Check(tpls2.Contains("templates/a.png") && tpls2.Contains("templates/b.png"),
+                "收集内容正确（鼠标点击 + 有图片判断）", string.Join(",", tpls2.ToArray()));
+
+            string script2 = Path.Combine(dir, "auto.click.block");
+            d2.Save(script2);
+            string zip2 = Path.Combine(dir, "pack2.zip");
+            ScriptPackager.PackResult r2 = ScriptPackager.Pack(script2, runner, zip2, true);
+            Check(r2.TemplateCount == 2, "自动识图脚本打包模板数量", r2.TemplateCount.ToString());
+            string extract2 = Path.Combine(dir, "extract2");
+            System.IO.Compression.ZipFile.ExtractToDirectory(zip2, extract2);
+            Check(File.Exists(Path.Combine(extract2, "templates", "a.png")), "打包包含鼠标点击的模板");
+            Check(File.Exists(Path.Combine(extract2, "templates", "b.png")), "打包包含判断的模板");
+            string readme = File.ReadAllText(Path.Combine(extract2, "使用说明.txt"));
+            Check(readme.Contains(EngineVersion.Display), "使用说明里带统一版本号", EngineVersion.Display);
             try { Directory.Delete(dir, true); } catch { }
         }
 
@@ -675,6 +705,12 @@ namespace BlockAuto
                     // 正确 token
                     string health = TryRequest(baseUrl + "/health", "GET", null, "test-token");
                     Check(health != null && health.IndexOf("\"ok\":true") >= 0, "健康检查通过", Trim(health));
+                    // /health 里带版本与「路径 ↔ 白名单动作名」对照，接 API 时不用按 URL 猜动作名
+                    Check(health != null && health.IndexOf("\"version\":\"" + EngineVersion.Current + "\"") >= 0,
+                        "/health 返回统一版本号", Trim(health));
+                    Check(health != null && health.IndexOf("\"actions\"") >= 0 &&
+                          health.IndexOf("\"cap.findImage\"") >= 0 && health.IndexOf("\"/cap/findImage\"") >= 0,
+                        "/health 返回动作名与路径对照", Trim(health));
                     // 脚本控制
                     string start = TryRequest(baseUrl + "/script/start", "POST", "{\"script\":\"a.block\"}", "test-token");
                     Check(start != null && start.IndexOf("\"ok\":true") >= 0, "POST /script/start", Trim(start));

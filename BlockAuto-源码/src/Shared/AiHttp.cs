@@ -160,12 +160,44 @@ namespace BlockAuto
                 case "/log":
                     return _host.GetLog(Json.GetString(req, "script", ""));
                 case "/health":
-                    return new Dictionary<string, object> { { "ok", true }, { "name", "BlockAuto" }, { "time", DateTime.Now.ToString("o") } };
+                    return Health();
+
                 default:
                     return Fail("未知接口：" + path);
             }
         }
 
+        private static Dictionary<string, object> Health()
+        {
+            Dictionary<string, object> d = new Dictionary<string, object>();
+            d["ok"] = true;
+            d["name"] = "BlockAuto";
+            d["version"] = EngineVersion.Current;
+            d["time"] = DateTime.Now.ToString("o");
+            // 接口路径 ↔ 白名单动作名对照：接 API 时直接照抄，不用按 URL 猜动作名
+            List<object> actions = new List<object>();
+            actions.Add(ActionItem("/script/start", "POST", "script.start"));
+            actions.Add(ActionItem("/script/stop", "POST", "script.stop"));
+            actions.Add(ActionItem("/script/status", "GET", "script.status"));
+            actions.Add(ActionItem("/script/tree", "GET/PUT", "script.tree"));
+            actions.Add(ActionItem("/cap/screenshot", "POST", "cap.screenshot"));
+            actions.Add(ActionItem("/cap/findImage", "POST", "cap.findImage"));
+            actions.Add(ActionItem("/cap/mouseClick", "POST", "cap.mouseClick"));
+            actions.Add(ActionItem("/cap/keyType", "POST", "cap.keyType"));
+            actions.Add(ActionItem("/log", "GET", "log.read"));
+            actions.Add(ActionItem("/health", "GET", "health"));
+            d["actions"] = actions;
+            return d;
+        }
+
+        private static Dictionary<string, object> ActionItem(string path, string method, string action)
+        {
+            Dictionary<string, object> m = new Dictionary<string, object>();
+            m["path"] = path;
+            m["method"] = method;
+            m["action"] = action;
+            return m;
+        }
         private static List<KeyValuePair<string, string>> ParseQueryUtf8(string rawUrl)
         {
             List<KeyValuePair<string, string>> list = new List<KeyValuePair<string, string>>();

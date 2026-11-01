@@ -19,7 +19,7 @@
         "offset": [ 0, 0 ],
         "on_fail": "retry",
         "retries": 3,
-        "retry_delay": 1,
+        "retry_delay": 0.3,
         "delay_after": 0.2,
         "x": "",
         "y": ""

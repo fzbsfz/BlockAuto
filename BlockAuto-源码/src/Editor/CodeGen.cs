@@ -214,6 +214,14 @@ namespace BlockAuto
         private static string Cond(Block b, string port)
         {
             if (port == null) return "true";
+            // 「有图片」判断的条件不在端口上：写成模板匹配，避免代码视图里出现“如果 null”
+            object ct;
+            if (b.Type == "if" && port == "cond" && b.Params.TryGetValue("cond_type", out ct) &&
+                string.Equals(Convert.ToString(ct), "image", StringComparison.OrdinalIgnoreCase))
+            {
+                string tpl = Text(b.Params, "template");
+                return "有图片 " + (tpl.Length > 0 ? tpl : "（未选模板）");
+            }
             return InputExpr(b, port, port);
         }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -169,8 +169,19 @@ namespace BlockAuto
         }
     }
 
+    /// <summary>
+    /// 版本号唯一来源：联网更新检查、联网/关于窗口、运行器 banner、打包使用说明、状态栏
+    /// 全部引用这里，避免各处写死后互相不一致。
+    /// </summary>
     public static class EngineVersion
     {
-        public const string Current = "2.0.0";
+        /// <summary>用于版本比较的完整版本号（三段式）。</summary>
+        public const string Current = "1.0.0";
+        /// <summary>对外展示的短版本号。</summary>
+        public const string Display = "1.0";
+        /// <summary>发布阶段说明。</summary>
+        public const string Stage = "未发行";
+        /// <summary>形如 “1.0（未发行）”。</summary>
+        public const string Full = Display + "（" + Stage + "）";
     }
 }
