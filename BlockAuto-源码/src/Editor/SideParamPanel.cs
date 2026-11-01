@@ -142,100 +142,36 @@ namespace BlockAuto
         {
             bool imageMode = ParamText("coord_mode") == "image" || ParamText("coord_mode") == "bound";
 
-            AddSection("坐标来源（二选一）");
-            _flow.Controls.Add(RadioTile("固定坐标", "用「记录位置」记下的屏幕坐标", !imageMode, delegate { SetMode("recorded"); }));
-            _flow.Controls.Add(RadioTile("自动识图", "截图取图，运行时自动找这个位置", imageMode, delegate { SetMode("image"); }));
+            // 主入口只有一件事：截一块屏幕 → 用选区中心当点击坐标
+            AddSection("点击位置");
+            string pos = ParamText("x").Length > 0 ? "(" + ParamText("x") + ", " + ParamText("y") + ")" : "还没取坐标";
+            Label posLabel = new Label();
+            posLabel.Text = imageMode ? "当前用「自动识图」（高级）" : pos;
+            posLabel.ForeColor = imageMode ? Theme.Warning : (ParamText("x").Length > 0 ? Theme.Success : Theme.TextDim);
+            posLabel.Font = Theme.UiFont(11f, FontStyle.Bold);
+            posLabel.AutoSize = true;
+            posLabel.Margin = new Padding(2, 2, 0, 4);
+            _flow.Controls.Add(posLabel);
+
+            _flow.Controls.Add(WideButton("◎ 截图位置", delegate
+            {
+                Action<Block> h = CapturePositionRequested;
+                if (h != null) h(_block);
+            }));
+            FlowLayoutPanel row3 = HRow();
+            row3.Controls.Add(WideButton("记录当前位置", delegate
+            {
+                Action<Block> h = RecordRequested;
+                if (h != null) h(_block);
+            }));
+            row3.Controls.Add(WideButton("清除坐标", delegate { ClearPoint(); }));
+            _flow.Controls.Add(row3);
 
             if (imageMode)
             {
-                AddSection("识别模板（运行时自动找到并点击）");
-                string tpl = ParamText("template");
-                Label tplLabel = new Label();
-                tplLabel.Text = tpl.Length > 0 ? Path.GetFileName(tpl) : "还没截图，点下面的「截图取图」";
-                tplLabel.ForeColor = tpl.Length > 0 ? Theme.Text : Theme.Danger;
-                tplLabel.Font = Theme.UiFont(9.5f, FontStyle.Bold);
-                tplLabel.AutoSize = true;
-                tplLabel.MaximumSize = new Size(Theme.Px(210), 0);
-                tplLabel.Margin = new Padding(2, 2, 0, 4);
-                _flow.Controls.Add(tplLabel);
-
-                FlowLayoutPanel rowT = HRow();
-                rowT.Controls.Add(WideButton("📷 截图取图", delegate { CaptureTemplate(); }));
-                rowT.Controls.Add(WideButton("模板库…", delegate { PickTemplate(); }));
-                _flow.Controls.Add(rowT);
-
-                AddSection("识别区域");
-                FlowLayoutPanel rowR = HRow();
-                TextBox tbRegion = MakeText(ParamText("region"));
-                tbRegion.Width = Theme.Px(140);
-                tbRegion.Leave += delegate { ApplyText("region", tbRegion.Text); };
-                rowR.Controls.Add(tbRegion);
-                rowR.Controls.Add(WideButton("当前窗口", delegate
-                {
-                    tbRegion.Text = "active";
-                    ApplyText("region", "active");
-                }));
-                _flow.Controls.Add(rowR);
-
-                AddSection("相似度（0~1，越大越严格）");
-                _flow.Controls.Add(NumberBox("threshold", 0.8, 0, 1, 0.05, 3));
-
-                AddSection("找不到图时");
-                _flow.Controls.Add(ChoiceBox("on_fail", new string[] { "retry", "skip", "error" },
-                    new string[] { "重试几次", "跳过这一步", "报错停止" }, "retry"));
-                AddSection("重试次数 / 间隔（秒）");
-                FlowLayoutPanel rowRetry = HRow();
-                NumericUpDown retries = new NumericUpDown();
-                retries.Minimum = 0;
-                retries.Maximum = 200;
-                retries.Value = ToDecimal(ParamText("retries").Length > 0 ? ParamText("retries") : "3");
-                retries.Width = Theme.Px(90);
-                retries.BackColor = Theme.IsLight ? Color.White : Theme.PanelAlt;
-                retries.ForeColor = Theme.Text;
-                retries.ValueChanged += delegate
-                {
-                    if (_applying) return;
-                    SetParam("retries", (double)retries.Value);
-                };
-                rowRetry.Controls.Add(retries);
-                NumericUpDown wait = new NumericUpDown();
-                wait.DecimalPlaces = 1;
-                wait.Minimum = 0;
-                wait.Maximum = 3600;
-                wait.Increment = 0.5m;
-                wait.Value = ToDecimal(ParamText("retry_delay").Length > 0 ? ParamText("retry_delay") : "0.3");
-                wait.Width = Theme.Px(90);
-                wait.BackColor = Theme.IsLight ? Color.White : Theme.PanelAlt;
-                wait.ForeColor = Theme.Text;
-                wait.ValueChanged += delegate
-                {
-                    if (_applying) return;
-                    SetParam("retry_delay", (double)wait.Value);
-                };
-                rowRetry.Controls.Add(wait);
-                _flow.Controls.Add(rowRetry);
-            }
-            else
-            {
-                AddSection("点击位置");
-                string pos = ParamText("x").Length > 0 ? "(" + ParamText("x") + ", " + ParamText("y") + ")" : "未记录";
-                Label posLabel = new Label();
-                posLabel.Text = pos;
-                posLabel.ForeColor = ParamText("x").Length > 0 ? Theme.Success : Theme.TextDim;
-                posLabel.Font = Theme.UiFont(10f, FontStyle.Bold);
-                posLabel.AutoSize = true;
-                posLabel.Margin = new Padding(2, 2, 0, 4);
-                _flow.Controls.Add(posLabel);
-
-                FlowLayoutPanel row3 = HRow();
-                row3.Controls.Add(WideButton("◎ 记录位置", delegate
-                {
-                    Action<Block> h = RecordRequested;
-                    if (h != null) h(_block);
-                }));
-                row3.Controls.Add(WideButton("清除坐标", delegate { ClearPoint(); }));
-                _flow.Controls.Add(row3);
-                AddHint("想要“点某个按钮”更稳？改用上面的「自动识图」，截图后自动找位置。");
+                AddHint("这一步目前用「自动识图」（旧版/高级用法）：运行时先找模板图再点它的中心。"
+                    + "想改回普通点击，点下面的「改用点击坐标」。");
+                _flow.Controls.Add(WideButton("改用点击坐标", delegate { SetMode("recorded"); }));
             }
 
             AddSection("按键 / 动作");
@@ -251,6 +187,7 @@ namespace BlockAuto
 
             AddTextRow("偏移 (dx,dy)", "offset", true);
 
+            AddHint("模板 / 识别区域 / 相似度 / 失败处理属于「自动识图」高级用法，在「全部参数…」里设置。");
             FlowLayoutPanel row4 = HRow();
             row4.Controls.Add(WideButton("全部参数…", delegate { EditRequested(); }));
             row4.Controls.Add(WideButton(_block.Disabled ? "启用" : "禁用", delegate { ToggleDisable(); }));
@@ -385,54 +322,32 @@ namespace BlockAuto
 
         private void BuildIfPanel()
         {
-            AddSection("判断方式");
-            FlowLayoutPanel row = HRow();
-            row.Controls.Add(Toggle("条件判断", !IsImageIf(_block), delegate
-            {
-                if (_pushUndo != null) _pushUndo();
-                _block.Params["cond_type"] = "cond";
-                if (_changed != null) _changed();
-                Rebuild();
-            }));
-            row.Controls.Add(Toggle("有图片", IsImageIf(_block), delegate
-            {
-                if (_pushUndo != null) _pushUndo();
-                _block.Params["cond_type"] = "image";
-                if (!_block.Params.ContainsKey("template")) _block.Params["template"] = "";
-                if (_changed != null) _changed();
-                Rebuild();
-            }));
-            _flow.Controls.Add(row);
+            AddSection("判断与执行");
+            AddHint("每个分支上方是判断条件，分支里的步骤是执行内容。判断条件三选一："
+                + "用积木判断（把「比较 / 识图 / 找色」的输出连过来）、有图片、找色。");
 
-            if (IsImageIf(_block))
+            List<BranchSpec> specs = Catalog.Branches(_block);
+            for (int i = 0; i < _block.Branches.Count && i < specs.Count; i++)
             {
-                AddSection("模板图片");
-                Label tpl = new Label();
-                tpl.Text = ParamText("template").Length > 0 ? System.IO.Path.GetFileName(ParamText("template")) : "未选择";
-                tpl.ForeColor = ParamText("template").Length > 0 ? Theme.Text : Theme.Danger;
-                tpl.AutoSize = true;
-                _flow.Controls.Add(tpl);
-                FlatButton pick = WideButton("从模板库选择…", delegate
+                BranchSpec spec = specs[i];
+                string title = i == 0 ? "如果" : (spec.ConditionPort == null ? "否则" : "否则如果 " + i);
+                AddSection(title);
+                if (spec.ConditionPort == null)
                 {
-                    using (TemplateManagerForm f = new TemplateManagerForm(_doc, true))
-                    {
-                        if (f.ShowDialog(FindForm()) == DialogResult.OK && !string.IsNullOrEmpty(f.SelectedTemplate))
-                        {
-                            if (_pushUndo != null) _pushUndo();
-                            _block.Params["template"] = f.SelectedTemplate;
-                            if (_changed != null) _changed();
-                            Rebuild();
-                        }
-                    }
-                });
-                _flow.Controls.Add(pick);
-                _flow.Controls.Add(WideButton("截图取图…", delegate { CaptureTemplate(); }));
-                AddTextRow("相似度(0~1)", "threshold", false);
-                AddTextRow("识别区域", "region", false);
-            }
-            else
-            {
-                AddHint("选择“有图片”后：找到图片就执行内部步骤，找不到就跳过。");
+                    AddHint("前面都不成立时执行下面的步骤，不需要判断条件。");
+                    continue;
+                }
+
+                string type = IfConditionType(spec, i);
+                FlowLayoutPanel row = HRow();
+                row.Controls.Add(ToggleW("用积木判断", 96, type == "cond", delegate { SetIfConditionType(spec, i, "cond"); }));
+                row.Controls.Add(ToggleW("有图片", 76, type == "image", delegate { SetIfConditionType(spec, i, "image"); }));
+                row.Controls.Add(ToggleW("找色", 64, type == "color", delegate { SetIfConditionType(spec, i, "color"); }));
+                _flow.Controls.Add(row);
+
+                if (type == "image") BuildBranchImage(spec, i);
+                else if (type == "color") BuildBranchColor(spec, i);
+                else AddHint("把「比较 / 识图 / 找色」等判断积木的输出连到这个分支的条件上。");
             }
 
             FlowLayoutPanel row2 = HRow();
@@ -441,7 +356,124 @@ namespace BlockAuto
             _flow.Controls.Add(row2);
         }
 
-/// <summary>框选屏幕区域，直接存为模板并填入当前判断/识图。</summary>
+        private string IfConditionType(BranchSpec spec, int index)
+        {
+            string t = ParamText("condtype_" + spec.Name);
+            if (t.Length > 0) return t;
+            if (index == 0) return ParamText("cond_type").Length > 0 ? ParamText("cond_type") : "cond";
+            return "cond";
+        }
+
+        private void SetIfConditionType(BranchSpec spec, int index, string type)
+        {
+            if (_pushUndo != null) _pushUndo();
+            // 主分支沿用旧参数名（cond_type/template/…），其它分支用后缀名，旧脚本不受影响
+            string key = index == 0 ? "cond_type" : "condtype_" + spec.Name;
+            _block.Params[key] = type;
+            if (type == "image" && !_block.Params.ContainsKey(BranchKey(spec, index, "template")))
+                _block.Params[BranchKey(spec, index, "template")] = "";
+            if (_changed != null) _changed();
+            Rebuild();
+        }
+
+        private string BranchKey(BranchSpec spec, int index, string baseName)
+        {
+            return index == 0 ? baseName : baseName + "_" + spec.Name;
+        }
+
+        private void BuildBranchImage(BranchSpec spec, int index)
+        {
+            string keyTpl = BranchKey(spec, index, "template");
+            string tpl = ParamText(keyTpl);
+            Label tplLabel = new Label();
+            tplLabel.Text = tpl.Length > 0 ? Path.GetFileName(tpl) : "还没选模板";
+            tplLabel.ForeColor = tpl.Length > 0 ? Theme.Text : Theme.Danger;
+            tplLabel.Font = Theme.UiFont(9.5f, FontStyle.Bold);
+            tplLabel.AutoSize = true;
+            tplLabel.Margin = new Padding(2, 2, 0, 4);
+            _flow.Controls.Add(tplLabel);
+
+            FlowLayoutPanel rowT = HRow();
+            rowT.Controls.Add(WideButton("截图取图…", delegate
+            {
+                string saved = TemplateCapture.PickAndSave(FindForm(), _doc, "截图取图");
+                if (saved == null) return;
+                if (_pushUndo != null) _pushUndo();
+                _block.Params[keyTpl] = saved;
+                if (_changed != null) _changed();
+                Rebuild();
+            }));
+            rowT.Controls.Add(WideButton("模板库…", delegate
+            {
+                using (TemplateManagerForm f = new TemplateManagerForm(_doc, true))
+                {
+                    if (f.ShowDialog(FindForm()) != DialogResult.OK || string.IsNullOrEmpty(f.SelectedTemplate)) return;
+                    if (_pushUndo != null) _pushUndo();
+                    _block.Params[keyTpl] = f.SelectedTemplate;
+                    if (_changed != null) _changed();
+                    Rebuild();
+                }
+            }));
+            _flow.Controls.Add(rowT);
+
+            string keyTh = BranchKey(spec, index, "threshold");
+            NumericUpDown th = new NumericUpDown();
+            th.DecimalPlaces = 2;
+            th.Minimum = 0;
+            th.Maximum = 1;
+            th.Increment = 0.05m;
+            th.Value = ToDecimal(ParamText(keyTh).Length > 0 ? ParamText(keyTh) : "0.8");
+            th.Width = Theme.Px(216);
+            th.BackColor = Theme.IsLight ? Color.White : Theme.PanelAlt;
+            th.ForeColor = Theme.Text;
+            th.Margin = new Padding(2, 0, 0, 6);
+            th.ValueChanged += delegate
+            {
+                if (_applying) return;
+                SetParam(keyTh, (double)th.Value);
+            };
+            AddSection("相似度（0~1）");
+            _flow.Controls.Add(th);
+
+            string keyRegion = BranchKey(spec, index, "region");
+            AddSection("识别区域");
+            TextBox tb = MakeText(ParamText(keyRegion).Length > 0 ? ParamText(keyRegion) : "active");
+            tb.Leave += delegate { ApplyText(keyRegion, tb.Text); };
+            _flow.Controls.Add(tb);
+        }
+
+        private void BuildBranchColor(BranchSpec spec, int index)
+        {
+            string keyRgb = BranchKey(spec, index, "rgb");
+            AddSection("颜色（#RRGGBB）");
+            TextBox tb = MakeText(ParamText(keyRgb).Length > 0 ? ParamText(keyRgb) : "#FF0000");
+            tb.Leave += delegate { ApplyText(keyRgb, tb.Text); };
+            _flow.Controls.Add(tb);
+
+            string keyTol = BranchKey(spec, index, "tolerance");
+            AddSection("颜色容差");
+            NumericUpDown tol = new NumericUpDown();
+            tol.Minimum = 0;
+            tol.Maximum = 255;
+            tol.Value = ToDecimal(ParamText(keyTol).Length > 0 ? ParamText(keyTol) : "8");
+            tol.Width = Theme.Px(216);
+            tol.BackColor = Theme.IsLight ? Color.White : Theme.PanelAlt;
+            tol.ForeColor = Theme.Text;
+            tol.Margin = new Padding(2, 0, 0, 6);
+            tol.ValueChanged += delegate
+            {
+                if (_applying) return;
+                SetParam(keyTol, (double)tol.Value);
+            };
+            _flow.Controls.Add(tol);
+
+            string keyRegion = BranchKey(spec, index, "region");
+            AddSection("识别区域");
+            TextBox tb2 = MakeText(ParamText(keyRegion).Length > 0 ? ParamText(keyRegion) : "full");
+            tb2.Leave += delegate { ApplyText(keyRegion, tb2.Text); };
+            _flow.Controls.Add(tb2);
+        }
+
         private void CaptureTemplate()
         {
             Rectangle r = RoiPickerForm.Pick(FindForm(), "截图取图");
@@ -527,6 +559,40 @@ namespace BlockAuto
                     SetParam(spec.Name, (double)num.Value);
                 };
                 _flow.Controls.Add(num);
+                return;
+            }
+
+            if (spec.Kind == "key")
+            {
+                AddSection(spec.Label);
+                KeyPicker picker = new KeyPicker();
+                picker.Width = Theme.Px(216);
+                picker.Value = ParamText(spec.Name);
+                picker.ValueChanged += delegate
+                {
+                    if (_applying) return;
+                    SetParam(spec.Name, picker.Value);
+                };
+                _flow.Controls.Add(picker);
+                return;
+            }
+
+            if (spec.Kind == "multiline")
+            {
+                // 输入文本 / 注释这类多行参数，侧栏也要能看全、能换行，不能降级成单行框
+                AddSection(spec.Label);
+                TextBox box = new TextBox();
+                box.Multiline = true;
+                box.ScrollBars = ScrollBars.Vertical;
+                box.AcceptsReturn = true;
+                box.WordWrap = true;
+                box.Width = Theme.Px(216);
+                box.Height = Theme.Px(76);
+                box.Text = ParamText(spec.Name).Replace("\n", Environment.NewLine);
+                Theme.ApplyDarkTextBox(box);
+                box.Margin = new Padding(2, 0, 0, 6);
+                box.Leave += delegate { ApplyText(spec.Name, box.Text); };
+                _flow.Controls.Add(box);
                 return;
             }
 
@@ -643,6 +709,8 @@ namespace BlockAuto
         }
 
         public event Action<Block> RecordRequested;
+        /// <summary>抽屉里点「◎ 截图位置」：由主窗口框选取点。</summary>
+        public event Action<Block> CapturePositionRequested;
         public event Action<Block> EditBlockRequested;
 
         private void RefreshSub()
@@ -707,6 +775,14 @@ namespace BlockAuto
             Theme.ApplyDarkTextBox(tb);
             tb.Margin = new Padding(2, 0, 0, 6);
             return tb;
+        }
+
+        /// <summary>加宽版的开关按钮（文案较长时用）。</summary>
+        private FlatButton ToggleW(string text, int width, bool active, EventHandler onClick)
+        {
+            FlatButton b = Toggle(text, active, onClick);
+            b.Width = Theme.Px(width);
+            return b;
         }
 
         private FlatButton Toggle(string text, bool active, EventHandler onClick)

@@ -750,6 +750,23 @@ namespace BlockAuto
             Win32.SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
         }
 
+        /// <summary>校验按键写法是否可执行（只看键表，不真的发送按键）。</summary>
+        public static bool IsValidKeySpec(string spec)
+        {
+            if (string.IsNullOrEmpty(spec)) return false;
+            bool hasKey = false;
+            foreach (string raw in spec.Replace(" ", "").Split('+'))
+            {
+                string p = raw.Trim().ToLowerInvariant();
+                if (p.Length == 0) continue;
+                if (p == "ctrl" || p == "control" || p == "alt" || p == "shift" || p == "win" || p == "meta") continue;
+                int vk;
+                if (!Keys.TryGetValue(p, out vk)) return false;
+                hasKey = true;
+            }
+            return hasKey;
+        }
+
         public static bool PressKey(string spec)
         {
             if (string.IsNullOrEmpty(spec)) return false;

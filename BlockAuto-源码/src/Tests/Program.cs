@@ -69,6 +69,7 @@ namespace BlockAuto
             FileAssocTests();
             ImageConditionTests();
             AutoImageClickTests();
+            BranchConditionTests();
 
             Console.WriteLine();
             Console.WriteLine("结果：通过 " + _pass + " 项，失败 " + _fail + " 项");
@@ -612,6 +613,23 @@ namespace BlockAuto
             Check(File.Exists(Path.Combine(extract, "BlockRunner.exe")), "包含运行器");
             Check(File.Exists(Path.Combine(extract, "双击运行.cmd")), "包含双击运行脚本");
             Check(File.Exists(Path.Combine(extract, "使用说明.txt")), "包含使用说明");
+            // 1.1：默认静默跑（不弹黑窗）、另给一个看日志的入口
+            string silentCmd = File.ReadAllText(Path.Combine(extract, "双击运行.cmd"));
+            Check(silentCmd.Contains("--silent"), "双击运行默认静默（--silent）", silentCmd);
+            // 静默入口：带 --silent，跑完直接退出（只有“找不到运行器”那步才会 pause）
+            Check(silentCmd.Contains("exit /b %ERRORLEVEL%"), "静默入口跑完直接退出", silentCmd);
+            Check(!silentCmd.Contains("echo 退出码"), "静默入口不打印退出码/不逗留", silentCmd);
+            Check(silentCmd.Length > 0 && silentCmd.Contains("--silent"), "静默入口带 --silent", silentCmd);
+            Check(File.Exists(Path.Combine(extract, "查看日志运行.cmd")), "另带「查看日志运行.cmd」入口");
+
+            // 勾了“包含运行器”却没有运行器 → 必须直接失败（不能生成一个跑不起来的包）
+            bool failed = false;
+            try
+            {
+                ScriptPackager.Pack(script, Path.Combine(dir, "NoRunner.exe"), Path.Combine(dir, "bad.zip"), true, true);
+            }
+            catch (Exception) { failed = true; }
+            Check(failed, "缺运行器时打包直接报错，而不是生成坏包");
 
             // v1.0：识图并入鼠标点击后，打包必须还能收集到「鼠标点击」里引用的模板
             ScriptDocument d2 = new ScriptDocument();
@@ -1055,13 +1073,90 @@ namespace BlockAuto
             Check(Engine.FormatValue(migrated.Blocks[0].Params["coord_mode"]) == "image", "合并后改为自动识图");
             Check(Engine.FormatValue(migrated.Blocks[0].Params["template"]) == "templates/btn.png", "合并后带上原模板");
 
-            // 积木库：独立识图不再出现，分类名与内容一致
-            Check(Catalog.Get("find_image") != null && Catalog.Get("find_image").Hidden, "旧识图积木仍然兼容旧脚本");
+            // 积木库：识图恢复成可见的「判断类」积木（v1.1 起）
+            Check(Catalog.Get("find_image") != null && !Catalog.Get("find_image").Hidden, "识图积木恢复为可见积木");
+            Check(Catalog.Get("find_image").IsCondition && Catalog.Get("find_color").IsCondition, "识图/找色标记为判断类（可接条件）");
             Check(Catalog.GroupOf("find_color") == "识别", "积木库分类改名后与内容一致");
             BlockInfo mc = Catalog.Get("mouse_click");
             Check(mc.Param("template") != null && mc.Param("on_fail") != null && mc.Param("retries") != null,
                 "鼠标点击积木包含识图与失败处理参数");
             Check(mc.Output("found") != null && mc.Output("confidence") != null, "鼠标点击输出识图结果");
+
+            try { Directory.Delete(dir, true); } catch { }
+        }
+
+        // ---------------------------- v1.1 判断/键位/打包 ----------------------------
+
+        private static void BranchConditionTests()
+        {
+            Section("分支独立条件（积木连线 / 有图片 / 找色）");
+
+            string dir = Path.Combine(Path.GetTempPath(), "blockauto-branch-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            Directory.CreateDirectory(Path.Combine(dir, "templates"));
+            using (Bitmap bmp = new Bitmap(8, 8))
+            {
+                using (Graphics g = Graphics.FromImage(bmp)) g.Clear(Color.Blue);
+                bmp.Save(Path.Combine(dir, "templates", "hit.png"), ImageFormat.Png);
+            }
+
+            // 否则如果 = 有图片（模板存在且命中）→ 走该分支
+            ScriptDocument d = new ScriptDocument();
+            d.FilePath = Path.Combine(dir, "b.block");
+            Block ifb = Add(d, d.Blocks, "if");
+            ifb.Params["branches"] = new List<object> { "main", "elif1", "else" };
+            ifb.Branches.Clear();
+            ifb.Branches.Add(new BranchBody("main"));
+            ifb.Branches.Add(new BranchBody("elif1"));
+            ifb.Branches.Add(new BranchBody("else"));
+            ifb.Params["condtype_elif1"] = "image";
+            ifb.Params["template_elif1"] = "templates/hit.png";
+            ifb.Params["threshold_elif1"] = 0.8d;
+            Block hitLog = Add(d, ifb.Branches[1].Blocks, "log");
+            hitLog.Params["text"] = "走了否则如果";
+            Block elseLog = Add(d, ifb.Branches[2].Blocks, "log");
+            elseLog.Params["text"] = "落在最后的否则";
+
+            MockAutomation auto = new MockAutomation();
+            auto.NextImage = new FindImageResult { Found = true, X = 12, Y = 34, Confidence = 0.9 };
+            MemoryLog log = new MemoryLog();
+            EngineResult r = RunDoc(d, auto, log);
+            Check(r.Status == EngineStatus.Completed, "含否则如果的脚本执行完成", r.Message);
+            Check(log.Contains("走了否则如果"), "否则如果的识图条件命中时走该分支");
+            Check(!log.Contains("落在最后的否则"), "否则分支未执行");
+
+            // 同一条链路：图片没找到 → 落到否则
+            MockAutomation miss = new MockAutomation();
+            miss.NextImage = new FindImageResult { Found = false };
+            MemoryLog log2 = new MemoryLog();
+            RunDoc(d, miss, log2);
+            Check(log2.Contains("落在最后的否则"), "识图条件不命中时落到否则分支");
+
+            // 找色条件
+            ScriptDocument d2 = new ScriptDocument();
+            Block ifb2 = Add(d2, d2.Blocks, "if");
+            ifb2.Params["branches"] = new List<object> { "main", "else" };
+            ifb2.Branches.Clear();
+            ifb2.Branches.Add(new BranchBody("main"));
+            ifb2.Branches.Add(new BranchBody("else"));
+            ifb2.Params["condtype_main"] = "color";
+            ifb2.Params["rgb_main"] = "#00FF00";
+            Block colLog = Add(d2, ifb2.Branches[0].Blocks, "log");
+            colLog.Params["text"] = "找到颜色";
+            MockAutomation auto2 = new MockAutomation();
+            auto2.NextColor = new FindColorResult { Found = true, X = 5, Y = 6 };
+            MemoryLog log3 = new MemoryLog();
+            RunDoc(d2, auto2, log3);
+            Check(log3.Contains("找到颜色"), "分支可选「找色」作为条件");
+
+            // 键位表：常用写法都认，乱写不认
+            Check(KeyCatalog.IsValid("enter"), "键位校验：enter");
+            Check(KeyCatalog.IsValid("ctrl+alt+f5"), "键位校验：ctrl+alt+f5");
+            Check(KeyCatalog.IsValid("shift+a"), "键位校验：shift+a");
+            Check(!KeyCatalog.IsValid("这不是键"), "键位校验：拒绝乱写的键名");
+            Check(KeyCatalog.Normalize("Ctrl + Alt + F5") == "ctrl+alt+f5", "键位规范化（大写/空格）");
+            string v = KeyCatalog.Display("ctrl+f5");
+            Check(v.IndexOf("Ctrl") >= 0 && v.IndexOf("F5") >= 0, "键位展示文案", v);
+            Check(KeyCatalog.All.Count > 50, "常用键位清单非空", KeyCatalog.All.Count.ToString());
 
             try { Directory.Delete(dir, true); } catch { }
         }

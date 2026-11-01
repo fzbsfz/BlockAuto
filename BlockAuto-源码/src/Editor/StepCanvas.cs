@@ -44,6 +44,12 @@ namespace BlockAuto
             public Rectangle Chevron;
             public Rectangle DetailBounds;
             public bool Expanded;
+            /// <summary>分支标题行专用：该分支的子积木列表（拖放落点要用）。</summary>
+            public List<Block> BranchList;
+            /// <summary>分支标题行专用：所属容器积木。</summary>
+            public Block Container;
+            /// <summary>分支标题行专用：分支名（main / else / elif1 …）。</summary>
+            public string BranchName = "";
         }
 
         private ScriptDocument _doc;
@@ -66,6 +72,7 @@ namespace BlockAuto
         private bool _dragArmed;
         private Point _dragStart;
         private int _dropRowIndex = -1;
+        private DropSpot _dropSpot;
         private Point _dragPoint;
 
         private bool _simpleMode = true;
@@ -78,8 +85,10 @@ namespace BlockAuto
         public event Action<Block> SelectionChanged;
         public event Action<Block> BlockEditRequested;
         public event Action<Block> RecordClickRequested;
-        /// <summary>要求为这一步“截图取图”（由主窗口弹框选截图并写回模板）。</summary>
+        /// <summary>要求为这一步“截图取图”（高级：框选模板，供自动识图用）。</summary>
         public event Action<Block> CaptureTemplateRequested;
+        /// <summary>要求为这一步“截图位置”：框选屏幕，用选区中心作为点击坐标。</summary>
+        public event Action<Block> CapturePositionRequested;
 
         public BlockCanvas()
         {
@@ -188,6 +197,9 @@ namespace BlockAuto
                         label.IsBranch = true;
                         label.Label = bi < specs.Count ? specs[bi].Label : b.Branches[bi].Name;
                         label.Depth = depth + 1;
+                        label.BranchList = b.Branches[bi].Blocks;
+                        label.Container = b;
+                        label.BranchName = b.Branches[bi].Name;
                         _rows.Add(label);
                         Flatten(b.Branches[bi].Blocks, depth + 1);
                     }
@@ -270,36 +282,38 @@ namespace BlockAuto
 
         private void DrawDragIndicator(Graphics g)
         {
-            List<Block> owner = _doc != null ? _doc.ParentListOf(_dragBlock) : null;
-            if (owner == null) return;
-            int from = owner.IndexOf(_dragBlock);
-            int to = _dropRowIndex;
-            if (to < 0) to = from;
-            if (to > owner.Count) to = owner.Count;
+            DropSpot spot = _dropSpot;
+            if (spot == null || spot.List == null) return;
+            List<Block> list = spot.List;
+            int to = Math.Max(0, Math.Min(spot.Index, list.Count));
 
             int lineY = -1;
-            if (to < owner.Count)
+            int lineX = 12;
+            if (to < list.Count)
             {
                 foreach (Row r in _rows)
                 {
-                    if (r.Block == owner[to]) { lineY = r.Bounds.Top - 1; break; }
+                    if (r.Block == list[to]) { lineY = r.Bounds.Top - 2; lineX = r.Bounds.X; break; }
                 }
             }
             if (lineY < 0)
             {
                 for (int i = _rows.Count - 1; i >= 0; i--)
                 {
-                    if (_rows[i].Block != null && owner.Contains(_rows[i].Block)) { lineY = _rows[i].Bounds.Bottom; break; }
+                    Row r = _rows[i];
+                    if (r.Block != null && list.Contains(r.Block)) { lineY = r.Bounds.Bottom + 1; lineX = r.Bounds.X; break; }
+                    if (r.IsBranch && r.BranchList == list) { lineY = r.Bounds.Bottom + 1; lineX = r.Bounds.X; break; }
                 }
             }
             if (lineY < 0) lineY = 40;
 
             using (Pen pen = new Pen(Theme.Accent, 3f))
-                g.DrawLine(pen, 12, lineY, W - 16, lineY);
+                g.DrawLine(pen, lineX, lineY, W - 16, lineY);
             using (SolidBrush dot = new SolidBrush(Theme.Accent))
-                g.FillEllipse(dot, 8, lineY - 4, 8, 8);
+                g.FillEllipse(dot, lineX - 4, lineY - 4, 8, 8);
 
-            string hint = "拖动中：把「" + Catalog.TitleOf(_dragBlock.Type) + "」放到第 " + Math.Min(to + 2, owner.Count + 1) + " 步";
+            string where = string.IsNullOrEmpty(spot.Label) ? ("第 " + (to + 2) + " 步") : ("「" + spot.Label + "」里");
+            string hint = "拖动中：把「" + Catalog.TitleOf(_dragBlock.Type) + "」放到" + where;
             Size sz = TextRenderer.MeasureText(g, hint, Theme.UiFontCached(8.5f, FontStyle.Regular),
                 new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPrefix);
             int w = sz.Width / Math.Max(1, Theme.Px(1)) + Theme.Px(20);
@@ -357,7 +371,8 @@ namespace BlockAuto
         {
             Rectangle b = r.Bounds;
             Color accent = Theme.Mix(Theme.Warning, Theme.Text, 0.25f);
-            // 分支名做成一枚小标签，不再整行铺色块
+
+            // 分支名做成一枚小标签
             int w = Math.Min(b.Width - 8, Theme.Px(58));
             Rectangle tag = new Rectangle(b.X + 4, b.Y + 2, w, b.Height - 4);
             using (SolidBrush fill = new SolidBrush(Theme.IsLight ? Color.FromArgb(0xFD, 0xF4, 0xE3) : Theme.Mix(Theme.Panel, Theme.Warning, 0.14f)))
@@ -366,6 +381,57 @@ namespace BlockAuto
             GdiText(g, r.Label, 8.5f, FontStyle.Bold,
                 new RectangleF(tag.X + 8, tag.Y, tag.Width - 10, tag.Height),
                 accent, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+
+            // 判断条件（否则分支没有条件）：让「判断区」和下面的执行步骤分得清
+            string cond = BranchConditionText(r);
+            if (cond.Length == 0) return;
+            int cx = tag.Right + Theme.Px(6);
+            int cw = Math.Max(Theme.Px(60), b.Right - cx - Theme.Px(8));
+            Rectangle chip = new Rectangle(cx, b.Y + 2, cw, b.Height - 4);
+            using (SolidBrush fill = new SolidBrush(Theme.IsLight ? Color.FromArgb(0xF4, 0xF7, 0xFD) : Theme.Mix(Theme.Panel, Theme.Accent, 0.10f)))
+            using (GraphicsPath p = Theme.RoundedRect(chip, 4))
+                g.FillPath(fill, p);
+            GdiText(g, cond, 8.5f, FontStyle.Regular,
+                new RectangleF(chip.X + 8, chip.Y, chip.Width - 12, chip.Height),
+                Theme.Mix(Theme.Accent, Theme.Text, 0.35f),
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+            // 判断区与执行区之间的细线
+            using (Pen hair = new Pen(Theme.Border, 1f))
+                g.DrawLine(hair, b.X, b.Bottom, b.Right, b.Bottom);
+        }
+
+        /// <summary>分支条件的文字描述：有图片 xxx / 找色 #RRGGBB / 条件来自「比较」。</summary>
+        private string BranchConditionText(Row r)
+        {
+            Block b = r.Container;
+            if (b == null) return "";
+            List<BranchSpec> specs = Catalog.Branches(b);
+            BranchSpec spec = null;
+            foreach (BranchSpec x in specs) if (x.Name == r.BranchName) { spec = x; break; }
+            if (spec == null || spec.ConditionPort == null) return "";
+            string type = ParamText(b, "condtype_" + r.BranchName);
+            if (type.Length == 0 && r.BranchName == "main") type = ParamText(b, "cond_type");
+            if (type == "image")
+            {
+                string tpl = ParamText(b, "template_" + r.BranchName);
+                if (tpl.Length == 0) tpl = ParamText(b, "template");
+                return "有图片 " + (tpl.Length > 0 ? System.IO.Path.GetFileName(tpl) : "（还没选模板）");
+            }
+            if (type == "color")
+            {
+                string rgb = ParamText(b, "rgb_" + r.BranchName);
+                if (rgb.Length == 0) rgb = ParamText(b, "rgb");
+                return "找色 " + (rgb.Length > 0 ? rgb : "#FF0000");
+            }
+            PinLink link = b.Input(spec.ConditionPort);
+            if (link != null && link.HasSource)
+            {
+                Block src = _doc != null ? _doc.FindBlock(link.SourceBlockId) : null;
+                if (src != null) return "条件来自「" + Catalog.TitleOf(src.Type) + "」";
+                return "条件：已连线";
+            }
+            return "还没设条件";
         }
 
         private void DrawStepRow(Graphics g, Row r, int index)
@@ -522,11 +588,13 @@ namespace BlockAuto
                 case "click": return "单击";
                 case "dblclick": return "双击";
                 case "mode_fixed": return "固定坐标";
-                case "mode_image": return "自动识图";
-                case "record": return "◎ 记录位置";
-                case "shot": return "📷 截图取图";
+                case "mode_image": return "自动识图（高级）";
+                case "shotpos": return "◎ 截图位置";
+                case "record": return "记录位置";
+                case "clearpt": return "清除坐标";
+                case "shot": return "截图取图（高级）";
                 case "templates": return "模板库";
-                case "edit": return "编辑参数";
+                case "edit": return "全部参数";
                 case "disable": return "禁用";
                 case "enable": return "启用";
                 default: return action;
@@ -555,17 +623,15 @@ namespace BlockAuto
             List<KeyValuePair<string, int>> items = new List<KeyValuePair<string, int>>();
             if (b.Type == "mouse_click")
             {
-                items.Add(new KeyValuePair<string, int>("mode_fixed", 80));
-                items.Add(new KeyValuePair<string, int>("mode_image", 80));
-                items.Add(new KeyValuePair<string, int>("record", 96));
-                items.Add(new KeyValuePair<string, int>("shot", 100));
-                items.Add(new KeyValuePair<string, int>("templates", 68));
+                // v1.1：展开行只留「取坐标 + 左右键/单双击 + 全部参数」，
+                // 识图/模板/阈值/失败处理/禁用等统一走右侧抽屉或右键菜单，避免两处一大排按钮。
+                items.Add(new KeyValuePair<string, int>("shotpos", 96));
+                items.Add(new KeyValuePair<string, int>("record", 90));
                 items.Add(new KeyValuePair<string, int>("left", 48));
                 items.Add(new KeyValuePair<string, int>("right", 48));
                 items.Add(new KeyValuePair<string, int>("click", 48));
                 items.Add(new KeyValuePair<string, int>("dblclick", 48));
-                items.Add(new KeyValuePair<string, int>("edit", 76));
-                items.Add(new KeyValuePair<string, int>(b.Disabled ? "enable" : "disable", 56));
+                items.Add(new KeyValuePair<string, int>("edit", 84));
             }
             else
             {
@@ -716,7 +782,7 @@ namespace BlockAuto
                 case "mouse_wheel":
                     return (ParamText(b, "dir") == "up" ? "向上" : "向下") + " " + ParamText(b, "amount") + " 格";
                 case "key_type":
-                    return "\"" + Shorten(ParamText(b, "text"), 24) + "\"";
+                    return "\"" + Shorten(OneLine(ParamText(b, "text")), 46) + "\"";
                 case "key_press":
                     return ParamText(b, "key");
                 case "sleep":
@@ -768,6 +834,13 @@ namespace BlockAuto
             return "条件";
         }
 
+        /// <summary>把换行折叠成 ⏎，避免行摘要被撑开。</summary>
+        private static string OneLine(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\r", "").Replace("\n", " ⏎ ");
+        }
+
         private static string Shorten(string s, int max)
         {
             if (string.IsNullOrEmpty(s)) return "";
@@ -812,8 +885,21 @@ namespace BlockAuto
                     lines.Add("等待 " + ParamText(b, "seconds") + " 秒（支持 0.5 这样的小数）");
                     break;
                 case "key_type":
-                    lines.Add("文本：" + ParamText(b, "text"));
-                    break;
+                    {
+                        // 展开行里完整展示输入内容（长文本最多两行，超出用省略号）
+                        string text = ParamText(b, "text");
+                        string[] parts = OneLine(text).Split(new string[] { " ⏎ " }, StringSplitOptions.None);
+                        string one = parts.Length > 0 ? parts[0] : "";
+                        if (one.Length > 96) one = one.Substring(0, 96) + "…";
+                        lines.Add("文本：" + one);
+                        if (parts.Length > 1)
+                        {
+                            string two = string.Join(" ⏎ ", parts, 1, parts.Length - 1);
+                            if (two.Length > 96) two = two.Substring(0, 96) + "…";
+                            lines.Add("      " + two);
+                        }
+                        break;
+                    }
                 case "key_press":
                     lines.Add("按键：" + ParamText(b, "key"));
                     break;
@@ -918,7 +1004,8 @@ namespace BlockAuto
                 {
                     _dragPoint = ToDesign(e.Location);
                     Cursor = Cursors.SizeAll;
-                    _dropRowIndex = DropIndexAt(ToDesign(e.Location).Y, _dragBlock);
+                    _dropSpot = ResolveDrop(ToDesign(e.Location), _dragBlock);
+                    _dropRowIndex = _dropSpot != null ? _dropSpot.Index : -1;
                     Invalidate();
                 }
             }
@@ -950,6 +1037,7 @@ namespace BlockAuto
             _dragging = false;
             _dragArmed = false;
             _dropRowIndex = -1;
+            _dropSpot = null;
             Cursor = Cursors.Default;
             Invalidate();
         }
@@ -973,34 +1061,131 @@ namespace BlockAuto
             FireViewChanged();
         }
 
-        private int DropIndexAt(int mouseY, Block dragged)
+        /// <summary>拖放落点：目标列表 + 插入下标 + 给人看的名字。</summary>
+        private sealed class DropSpot
         {
-            Row target = RowAt(new Point(10, mouseY));
-            if (target == null || target.IsStart || target.IsBranch || target.Block == null) return -1;
-            if (target.Owner == null) return -1;
-            if (target.Owner != _doc.ParentListOf(dragged)) return -1;
-            bool after = mouseY > target.Bounds.Top + target.Bounds.Height / 2;
-            int idx = target.Owner.IndexOf(target.Block);
-            return after ? idx + 1 : idx;
+            public List<Block> List;
+            public int Index;
+            public string Label = "";
+            public DropSpot(List<Block> list, int index, string label)
+            {
+                List = list; Index = index; Label = label ?? "";
+            }
+        }
+
+        /// <summary>
+        /// 鼠标位置 → 落点。支持落进循环体 / 如果 / 否则 / 异常捕获等分支内部；
+        /// dragged 为 null 表示从积木库拖进来的新积木。
+        /// </summary>
+        private DropSpot ResolveDrop(Point p, Block dragged)
+        {
+            Row target = RowAt(p);
+            if (target == null)
+            {
+                List<Block> tail = CurrentList;
+                if (tail == null) return null;
+                return new DropSpot(tail, tail.Count, "");
+            }
+            if (target.IsStart)
+                return new DropSpot(CurrentList, 0, "");
+            if (target.IsBranch)
+            {
+                if (target.BranchList == null) return null;
+                // 分支标题行 → 放进这个分支的最前面
+                if (dragged != null && IsListInside(dragged, target.BranchList)) return null;
+                return new DropSpot(target.BranchList, 0, target.Label);
+            }
+            if (target.Block == null || target.Owner == null) return null;
+            if (dragged != null && (target.Block == dragged || IsListInside(dragged, target.Owner))) return null;
+            bool after = p.Y > target.Bounds.Top + target.Bounds.Height / 2;
+            int idx = target.IndexInOwner + (after ? 1 : 0);
+            return new DropSpot(target.Owner, idx, "");
+        }
+
+        /// <summary>目标列表是否在 block 自己内部（防止把容器拖进它自己）。</summary>
+        private static bool IsListInside(Block block, List<Block> list)
+        {
+            if (block == null || list == null) return false;
+            foreach (BranchBody br in block.Branches)
+            {
+                if (br.Blocks == list) return true;
+                foreach (Block child in br.Blocks)
+                    if (IsListInside(child, list)) return true;
+            }
+            return false;
         }
 
         private void CompleteDrag()
         {
-            if (_dropRowIndex < 0) return;
+            if (_dragBlock == null) return;
+            DropSpot spot = _dropSpot ?? ResolveDrop(_dragStart, _dragBlock);
+            if (spot == null || spot.List == null) return;
+            List<Block> target = spot.List;
             List<Block> owner = _doc.ParentListOf(_dragBlock);
             if (owner == null) return;
             int oldIndex = owner.IndexOf(_dragBlock);
-            int insert = _dropRowIndex;
-            if (insert < 0 || insert > owner.Count) return;
-            if (insert == oldIndex || insert == oldIndex + 1) return;
+            if (oldIndex < 0) return;
+            int insert = spot.Index;
+            if (owner == target && (insert == oldIndex || insert == oldIndex + 1)) return;
 
             PushUndo();
             owner.RemoveAt(oldIndex);
-            if (oldIndex < insert) insert--;
-            owner.Insert(Math.Max(0, Math.Min(insert, owner.Count)), _dragBlock);
+            if (owner == target && oldIndex < insert) insert--;
+            insert = Math.Max(0, Math.Min(insert, target.Count));
+            target.Insert(insert, _dragBlock);
             _doc.EnsureNextLinks();
             Rebuild();
+            EnsureVisible(_dragBlock);
             FireChanged();
+        }
+
+        /// <summary>
+        /// 自检：把一个主流程积木「拖」进容器的最后一个分支，验证落点解析与跨列表移动。
+        /// 返回 OK/FAIL + 细节，供 --uicheck 报告使用。
+        /// </summary>
+        internal string DropIntoBranchForCheck()
+        {
+            if (_doc == null) return "nodoc";
+
+            Block container = null;
+            foreach (Block b in _doc.Blocks)
+                if (b.IsContainer && b.Branches.Count > 0) { container = b; break; }
+            if (container == null) return "skip 没有容器";
+
+            Block moved = null;
+            foreach (Block b in _doc.Blocks)
+                if (b != container && !b.IsContainer) { moved = b; break; }
+            if (moved == null) return "skip 没有可移动的普通积木";
+
+            int before = _doc.Blocks.Count;
+            _expanded.Clear();
+            _expanded.Add(container.Id);
+            Rebuild();
+
+            BranchBody last = container.Branches[container.Branches.Count - 1];
+            Row branchRow = null;
+            foreach (Row r in _rows)
+                if (r.IsBranch && r.BranchList == last.Blocks) { branchRow = r; break; }
+            if (branchRow == null) return "fail 找不到分支行";
+
+            Point p = new Point(branchRow.Bounds.X + 30, branchRow.Bounds.Y + branchRow.Bounds.Height / 2);
+            _dragBlock = moved;
+            _dropSpot = ResolveDrop(p, moved);
+            if (_dropSpot == null)
+            {
+                _dragBlock = null;
+                return "fail 落点解析为空";
+            }
+            string spot = _dropSpot.Label + "/" + _dropSpot.Index;
+            CompleteDrag();
+            _dragBlock = null;
+            _dropSpot = null;
+
+            bool inBranch = last.Blocks.Contains(moved);
+            bool removed = !_doc.Blocks.Contains(moved);
+            return (inBranch && removed ? "OK" : "FAIL")
+                + " 进入分支=" + inBranch + " 移出主流程=" + removed
+                + " 主流程步数=" + before + "->" + _doc.Blocks.Count + " 落点=" + spot;
         }
 
         private void ToggleExpanded(Block b)
@@ -1053,6 +1238,20 @@ namespace BlockAuto
                         if (h != null) h(b);
                         break;
                     }
+                case "shotpos":
+                    {
+                        Action<Block> h = CapturePositionRequested;
+                        if (h != null) h(b);
+                        break;
+                    }
+                case "clearpt":
+                    PushUndo();
+                    b.Params["x"] = "";
+                    b.Params["y"] = "";
+                    b.Params["coord_mode"] = "recorded";
+                    Rebuild();
+                    FireChanged();
+                    break;
                 case "shot":
                 case "templates":
                     {
@@ -1465,6 +1664,19 @@ namespace BlockAuto
                 if (h != null) h(block);
             });
             AddMenu(menu, block.IsContainer ? "展开/收起内部步骤" : "展开/收起详情", delegate { ToggleExpanded(block); });
+            if (block.Type == "mouse_click")
+            {
+                AddMenu(menu, "◎ 截图位置（框选取点）", delegate { _selected = block; Action<Block> h = CapturePositionRequested; if (h != null) h(block); });
+                AddMenu(menu, "清除这一步的坐标", delegate
+                {
+                    PushUndo();
+                    block.Params["x"] = "";
+                    block.Params["y"] = "";
+                    block.Params["coord_mode"] = "recorded";
+                    Rebuild();
+                    FireChanged();
+                });
+            }
             menu.Items.Add(new ToolStripSeparator());
             AddMenu(menu, "复制这一步", delegate { _selected = block; CopySelected(); });
             AddMenu(menu, "粘贴到下面", delegate { _selected = block; PasteClipboard(); });
@@ -1519,7 +1731,8 @@ namespace BlockAuto
             {
                 drgevent.Effect = DragDropEffects.Copy;
                 Point client = ToDesign(PointToClient(new Point(drgevent.X, drgevent.Y)));
-                _dropRowIndex = DropIndexAt(client.Y, null);
+                _dropSpot = ResolveDrop(client, null);
+                _dropRowIndex = _dropSpot != null ? _dropSpot.Index : -1;
                 Invalidate();
             }
             else base.OnDragOver(drgevent);
@@ -1531,11 +1744,9 @@ namespace BlockAuto
             {
                 string type = Convert.ToString(drgevent.Data.GetData("BlockAuto.BlockType"));
                 Point client = ToDesign(PointToClient(new Point(drgevent.X, drgevent.Y)));
-                List<Block> list = CurrentList;
-                int index = list.Count;
-                Row target = RowAt(client);
-                if (target != null && target.Block != null && target.Owner == list)
-                    index = list.IndexOf(target.Block) + (client.Y > target.Bounds.Top + target.Bounds.Height / 2 ? 1 : 0);
+                DropSpot spot = ResolveDrop(client, null) ?? new DropSpot(CurrentList, CurrentList.Count, "");
+                List<Block> list = spot.List ?? CurrentList;
+                int index = Math.Max(0, Math.Min(spot.Index, list.Count));
 
                 Block b = _doc.NewBlock(type);
                 PushUndo();

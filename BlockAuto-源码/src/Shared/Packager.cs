@@ -48,6 +48,12 @@ namespace BlockAuto
 
         public static PackResult Pack(string scriptPath, string runnerPath, string zipPath, bool includeRunner)
         {
+            return Pack(scriptPath, runnerPath, zipPath, includeRunner, true);
+        }
+
+        /// <summary>silentRun=true 时「双击运行.cmd」静默执行，不弹控制台窗口。</summary>
+        public static PackResult Pack(string scriptPath, string runnerPath, string zipPath, bool includeRunner, bool silentRun)
+        {
             if (!File.Exists(scriptPath)) throw new FileNotFoundException("脚本不存在：" + scriptPath);
             ScriptDocument doc = ScriptDocument.Load(scriptPath);
             List<string> errors = doc.Validate();
@@ -91,7 +97,8 @@ namespace BlockAuto
                 {
                     if (string.IsNullOrEmpty(runnerPath) || !File.Exists(runnerPath))
                     {
-                        result.Warnings.Add("未找到 BlockRunner.exe，压缩包不含运行器");
+                        throw new InvalidDataException("找不到 BlockRunner.exe（" + (runnerPath ?? "未指定") +
+                            "）。打包必须带上运行器，否则接收方双击无法运行；请确认程序目录里有 BlockRunner.exe。");
                     }
                     else
                     {
@@ -102,19 +109,26 @@ namespace BlockAuto
                 string readme = BuildReadme(doc, scriptName, result.TemplateCount, includeRunner);
                 File.WriteAllText(Path.Combine(stageDir, "使用说明.txt"), readme, new UTF8Encoding(true));
 
-                string cmd = "@echo off\r\n"
+                string head = "@echo off\r\n"
                     + "chcp 65001 >nul\r\n"
                     + "cd /d \"%~dp0\"\r\n"
                     + "if not exist BlockRunner.exe (\r\n"
-                    + "  echo 未找到 BlockRunner.exe，请把运行器放在本目录后重试。\r\n"
+                    + "  echo 未找到 BlockRunner.exe：请把本压缩包完整解压，别只拷 .block。\r\n"
                     + "  pause\r\n"
                     + "  exit /b 2\r\n"
-                    + ")\r\n"
+                    + ")\r\n";
+                string silentCmd = head
+                    + "BlockRunner.exe run \"" + scriptName + "\" --silent %*\r\n"
+                    + "exit /b %ERRORLEVEL%\r\n";
+                string normalCmd = head
                     + "BlockRunner.exe run \"" + scriptName + "\" %*\r\n"
                     + "echo.\r\n"
                     + "echo 退出码：%ERRORLEVEL%\r\n"
                     + "pause\r\n";
-                File.WriteAllText(Path.Combine(stageDir, "双击运行.cmd"), cmd, new UTF8Encoding(false));
+                // 默认入口静默（不弹黑窗、结束不逗留）；想排查问题再点“查看日志运行”
+                File.WriteAllText(Path.Combine(stageDir, "双击运行.cmd"),
+                    silentRun ? silentCmd : normalCmd, new UTF8Encoding(false));
+                File.WriteAllText(Path.Combine(stageDir, "查看日志运行.cmd"), normalCmd, new UTF8Encoding(false));
 
                 if (File.Exists(zipPath)) File.Delete(zipPath);
                 ZipFile.CreateFromDirectory(stageDir, zipPath, CompressionLevel.Optimal, false);
@@ -142,9 +156,11 @@ namespace BlockAuto
             sb.AppendLine("打包时间：" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.AppendLine();
             sb.AppendLine("使用方法：");
-            sb.AppendLine("1. 解压本压缩包到任意目录；");
-            sb.AppendLine("2. 双击「双击运行.cmd」，或命令行执行：");
-            sb.AppendLine("   BlockRunner.exe run " + scriptName);
+            sb.AppendLine("1. 请把整个压缩包解压到任意目录（.block 必须和 BlockRunner.exe 放在一起，单独拷脚本跑不了）；");
+            sb.AppendLine("2. 双击「双击运行.cmd」：静默运行，不弹黑窗口；");
+            sb.AppendLine("   想看过程/报错就双击「查看日志运行.cmd」，会显示日志并在结束时停留；");
+            sb.AppendLine("3. 命令行等价写法：");
+            sb.AppendLine("   BlockRunner.exe run " + scriptName + " --silent");
             sb.AppendLine();
             sb.AppendLine("可选参数：");
             sb.AppendLine("   --threshold 0.8   覆盖识图阈值");

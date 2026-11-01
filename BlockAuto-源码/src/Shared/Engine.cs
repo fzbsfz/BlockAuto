@@ -627,39 +627,19 @@ namespace BlockAuto
         private void ExecuteIf(Block b, RunContext ctx)
         {
             List<BranchSpec> specs = Catalog.Branches(b);
-            bool imageCond = string.Equals(Json.GetString(b.Params, "cond_type", "cond"), "image", StringComparison.OrdinalIgnoreCase);
-            bool imageFound = true;
-            if (imageCond)
-            {
-                string tpl = Json.GetString(b.Params, "template", "");
-                string path = _doc.ResolveTemplatePath(tpl);
-                if (string.IsNullOrEmpty(tpl) || path == null || !File.Exists(path))
-                {
-                    imageFound = false;
-                    Log(LogLevel.Warn, "判断", "未选择模板图片，按“没找到”处理：" + b.Id);
-                }
-                else
-                {
-                    double th = Json.GetNumber(b.Params, "threshold", 0);
-                    if (th <= 0) th = _defaultThreshold;
-                    string region = Json.GetString(b.Params, "region", "active");
-                    FindImageResult fr = _auto.FindImage(path, region, th);
-                    imageFound = fr.Found;
-                    SetOutput(ctx, b, "found", fr.Found);
-                    SetOutput(ctx, b, "x", fr.X);
-                    SetOutput(ctx, b, "y", fr.Y);
-                    SetOutput(ctx, b, "confidence", fr.Confidence);
-                    Log(LogLevel.Info, "判断", fr.Found
-                        ? string.Format("找到图片 {0}，坐标 ({1:0}, {2:0})", tpl, fr.X, fr.Y)
-                        : "没找到图片 " + tpl + "，跳过该分支");
-                }
-            }
             for (int i = 0; i < b.Branches.Count && i < specs.Count; i++)
             {
                 BranchSpec spec = specs[i];
+                // 没有条件端口 = 「否则」分支：前面都不成立就走这里
+                if (spec.ConditionPort == null)
+                {
+                    ExecuteList(b.Branches[i].Blocks, ctx);
+                    return;
+                }
+                string ctype = BranchConditionType(b, spec, i);
                 bool take;
-                if (spec.ConditionPort == null) take = true; // else 分支
-                else if (imageCond) take = (i == 0) ? imageFound : false;
+                if (ctype == "image") take = EvaluateImageCondition(b, spec, i, ctx);
+                else if (ctype == "color") take = EvaluateColorCondition(b, spec, i, ctx);
                 else take = Json.ToBool(EvalInput(b, spec.ConditionPort, ctx), false);
                 if (take)
                 {
@@ -667,6 +647,79 @@ namespace BlockAuto
                     return;
                 }
             }
+        }
+
+        /// <summary>分支条件类型：cond（积木连线）/ image（有图片）/ color（找色）。</summary>
+        private string BranchConditionType(Block b, BranchSpec spec, int index)
+        {
+            string t = Json.GetString(b.Params, "condtype_" + spec.Name, "");
+            if (t.Length > 0) return t;
+            // 兼容旧脚本：主分支沿用 cond_type
+            if (index == 0) return Json.GetString(b.Params, "cond_type", "cond");
+            return "cond";
+        }
+
+        /// <summary>分支参数取值：主分支用旧参数名，其它分支用「参数名_分支名」。</summary>
+        private string BranchText(Block b, BranchSpec spec, int index, string baseName, string def)
+        {
+            if (index > 0)
+            {
+                string v = Json.GetString(b.Params, baseName + "_" + spec.Name, "");
+                if (v.Length > 0) return v;
+            }
+            return Json.GetString(b.Params, baseName, def);
+        }
+
+        private double BranchNumber(Block b, BranchSpec spec, int index, string baseName, double def)
+        {
+            if (index > 0)
+            {
+                string key = baseName + "_" + spec.Name;
+                if (b.Params.ContainsKey(key)) return Json.GetNumber(b.Params, key, def);
+            }
+            return Json.GetNumber(b.Params, baseName, def);
+        }
+
+        private bool EvaluateImageCondition(Block b, BranchSpec spec, int index, RunContext ctx)
+        {
+            string tpl = BranchText(b, spec, index, "template", "");
+            string path = _doc.ResolveTemplatePath(tpl);
+            if (string.IsNullOrEmpty(tpl) || path == null || !File.Exists(path))
+            {
+                SetOutput(ctx, b, "found", false);
+                Log(LogLevel.Warn, "判断", "未选择模板图片，按“没找到”处理：" + b.Id);
+                return false;
+            }
+            double th = BranchNumber(b, spec, index, "threshold", 0);
+            if (th <= 0) th = _defaultThreshold;
+            string region = BranchText(b, spec, index, "region", "");
+            if (region.Length == 0) region = "active";
+            FindImageResult fr = _auto.FindImage(path, region, th);
+            SetOutput(ctx, b, "found", fr.Found);
+            SetOutput(ctx, b, "x", fr.X);
+            SetOutput(ctx, b, "y", fr.Y);
+            SetOutput(ctx, b, "confidence", fr.Confidence);
+            Log(LogLevel.Info, "判断", fr.Found
+                ? string.Format("分支「{0}」找到图片 {1}，坐标 ({2:0}, {3:0})", spec.Label, tpl, fr.X, fr.Y)
+                : "分支「" + spec.Label + "」没找到图片 " + tpl + "，看下一个分支");
+            return fr.Found;
+        }
+
+        private bool EvaluateColorCondition(Block b, BranchSpec spec, int index, RunContext ctx)
+        {
+            string rgb = BranchText(b, spec, index, "rgb", "");
+            if (rgb.Length == 0) rgb = "#FF0000";
+            string region = BranchText(b, spec, index, "region", "");
+            if (region.Length == 0) region = "full";
+            int tol = (int)BranchNumber(b, spec, index, "tolerance", 8);
+            FindColorResult r = _auto.FindColor(rgb, region, tol);
+            SetOutput(ctx, b, "found", r.Found);
+            SetOutput(ctx, b, "x", r.X);
+            SetOutput(ctx, b, "y", r.Y);
+            Log(LogLevel.Info, "判断", r.Found
+                ? string.Format("分支「{0}」找到颜色 {1}，坐标 ({2:0}, {3:0})", spec.Label, rgb, r.X, r.Y)
+                : "分支「" + spec.Label + "」没找到颜色 " + rgb + "，看下一个分支");
+            return r.Found;
         }
 
         private void ExecuteWhile(Block b, RunContext ctx)

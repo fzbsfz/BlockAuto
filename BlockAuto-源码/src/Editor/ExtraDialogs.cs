@@ -335,6 +335,7 @@ namespace BlockAuto
         private readonly TextBox _output;
         private readonly TextBox _preview;
         private readonly CheckBox _withRunner;
+        private readonly CheckBox _silentRun;
 
         public ScriptPackDialog(ScriptDocument doc, string runnerPath)
         {
@@ -378,6 +379,14 @@ namespace BlockAuto
             _withRunner.Location = new Point(16, 110);
             _withRunner.Width = 520;
             Controls.Add(_withRunner);
+
+            _silentRun = new CheckBox();
+            _silentRun.Text = "双击运行时静默（不弹黑窗口，推荐）";
+            _silentRun.ForeColor = Theme.Text;
+            _silentRun.Checked = true;
+            _silentRun.Location = new Point(316, 110);
+            _silentRun.Width = 300;
+            Controls.Add(_silentRun);
 
             Label l2 = Ui.Label("将包含以下内容：");
             l2.Location = new Point(16, 142);
@@ -430,7 +439,7 @@ namespace BlockAuto
         {
             try
             {
-                ScriptPackager.PackResult r = ScriptPackager.Pack(_doc.FilePath, _runnerPath, _output.Text.Trim(), _withRunner.Checked);
+                ScriptPackager.PackResult r = ScriptPackager.Pack(_doc.FilePath, _runnerPath, _output.Text.Trim(), _withRunner.Checked, _silentRun.Checked);
                 string msg = "打包完成：" + r.ZipPath + "\n模板 " + r.TemplateCount + " 个，大小 " + Math.Round(r.SizeBytes / 1024.0, 1) + " KB";
                 if (r.Warnings.Count > 0) msg += "\n\n注意：\n" + string.Join("\n", r.Warnings.ToArray());
                 MessageBox.Show(this, msg, "BlockAuto", MessageBoxButtons.OK, MessageBoxIcon.Information);

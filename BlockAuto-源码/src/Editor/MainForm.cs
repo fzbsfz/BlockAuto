@@ -402,7 +402,7 @@ namespace BlockAuto
             _pauseButton.Enabled = false;
             _stepButton = SmallButton("单步", delegate { StepPrimary(); });
 
-            FlatButton shot = SmallButton("📷 截图取图", delegate { CaptureTemplateForSelection(); });
+            FlatButton shot = SmallButton("◎ 截图位置", delegate { CapturePositionForSelection(); });
             shot.Width = Theme.Px(100);
             shot.ForeColor = Theme.Accent;
             shot.BackColor = Theme.Mix(Theme.Panel, Theme.Accent, 0.10f);
@@ -524,7 +524,8 @@ namespace BlockAuto
             AddMenu(menu, "当…时循环", delegate { _canvas.AddBlockType("while"); });
             AddMenu(menu, "循环 N 次", delegate { _canvas.AddBlockType("for_count"); });
             menu.Items.Add(new ToolStripSeparator());
-            AddMenu(menu, "📷 截图取图（存为模板）", delegate { CaptureTemplateForSelection(); });
+            AddMenu(menu, "◎ 截图位置（框选取点）", delegate { CapturePositionForSelection(); });
+            AddMenu(menu, "📷 截图取图（存为识图模板，高级）", delegate { CaptureTemplateForSelection(); });
             menu.Show(anchor, new Point(0, anchor.Height + 2));
         }
 
@@ -945,6 +946,7 @@ namespace BlockAuto
             _canvas.BlockEditRequested += OnEditBlock;
             _canvas.RecordClickRequested += OnRecordClick;
             _canvas.CaptureTemplateRequested += OnCaptureTemplate;
+            _canvas.CapturePositionRequested += OnCapturePosition;
             _contentPanel.Controls.Add(_canvas);
 
             _codeView = new RichTextBox();
@@ -964,6 +966,7 @@ namespace BlockAuto
             _sidePanel.Dock = DockStyle.None;
             _sidePanel.Visible = false;
             _sidePanel.RecordRequested += OnRecordClick;
+            _sidePanel.CapturePositionRequested += OnCapturePosition;
             _sidePanel.EditBlockRequested += OnEditBlock;
             _sidePanel.CloseRequested += delegate { _drawerManualHide = true; ShowDrawer(false); };
             _contentPanel.Controls.Add(_sidePanel);
@@ -1042,6 +1045,46 @@ namespace BlockAuto
             _drawerTargetLeft = openLeft;
         }
 
+
+        /// <summary>「截图位置」：框选屏幕上要点的目标，把选区中心写成点击坐标。</summary>
+        private void OnCapturePosition(Block b)
+        {
+            if (b == null) return;
+            Rectangle r = RoiPickerForm.Pick(this, "截图位置：框选要点击的目标（取选区中心）");
+            if (r.Width < 2 || r.Height < 2) return;
+            int cx = r.Left + r.Width / 2;
+            int cy = r.Top + r.Height / 2;
+            _canvas.SetRecordedPoint(b, cx, cy);
+            _dirty = true;
+            _logger.Write(new LogEntry
+            {
+                Level = LogLevel.Info,
+                Source = "截图位置",
+                Message = "第 " + (BlockIndex(b) + 1) + " 步取到坐标 (" + cx + ", " + cy + ")"
+            });
+            _statusLeft.Text = "已取到坐标 (" + cx + ", " + cy + ")";
+            _canvas.NotifyDocumentChanged();
+            RefreshSidePanel();
+            ShowDrawer(true);
+        }
+
+        /// <summary>工具栏「◎ 截图位置」：给当前选中的鼠标点击步骤取坐标。</summary>
+        private void CapturePositionForSelection()
+        {
+            if (_doc == null) return;
+            Block b = _canvas != null ? _canvas.SelectedBlock : null;
+            if (b == null || b.Type != "mouse_click")
+            {
+                _statusLeft.Text = "先在左边选中一个「鼠标点击」步骤，再点截图位置";
+                MessageBox.Show(this,
+                    "请先选中一个「鼠标点击」步骤，再点「◎ 截图位置」。"
+                    + Environment.NewLine + Environment.NewLine
+                    + "框选屏幕上要点击的目标，程序会把选区中心记成点击坐标。",
+                    "截图位置", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            OnCapturePosition(b);
+        }
 
         private void OnCaptureTemplate(Block b)
         {
@@ -1350,6 +1393,12 @@ namespace BlockAuto
         }
 
         /// <summary>自检：简洁模式下切代码视图必须被挡住（画布仍在、给出状态提示）。</summary>
+        /// <summary>自检：容器拖放（把积木放进最后一个分支）。</summary>
+        internal string DragDropCheckForCheck()
+        {
+            return _canvas != null ? _canvas.DropIntoBranchForCheck() : "nocanvas";
+        }
+
         internal string SimpleModeCodeGuardForCheck()
         {
             string oldMode = _config.UiMode;

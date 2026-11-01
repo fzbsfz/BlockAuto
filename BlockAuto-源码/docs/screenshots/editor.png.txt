@@ -1,6 +1,7 @@
-OK form=2240x1520 client=2214 root=2214 middle=2214 content=2062 side=0 canvas=2062x1161 left=134 items=9 dpi=96 sideBounds={X=1612,Y=0,Width=600,Height=1161} sideZ=2 parent=content kids=0:RichTextBox- 1:BlockCanvas+ 2:SideParamPanel-  contentSize={Width=2062, Height=1161} client={Width=2062, Height=1161} | mouse_click(b_001) | sleep(b_002) | key_type(b_003) | if(b_004)[main=1][else=1] title=BlockAuto 积木自动化平台 - keymouse_demo.block
-RUN status=选中：如果 / 否则如果 / 否则（b_004） sessions=0 logLen=439 canvasEnabled=True
+OK form=2240x1520 client=2214 root=2214 middle=2214 content=2062 side=0 canvas=2062x1161 left=134 items=9 dpi=96 sideBounds={X=1537,Y=0,Width=600,Height=1161} sideZ=2 parent=content kids=0:RichTextBox- 1:BlockCanvas+ 2:SideParamPanel-  contentSize={Width=2062, Height=1161} client={Width=2062, Height=1161} | mouse_click(b_001) | sleep(b_002) | key_type(b_003) | if(b_004)[main=1][else=1] title=BlockAuto 积木自动化平台 - keymouse_demo.block
+RUN status=选中：如果 / 否则如果 / 否则（b_004） sessions=0 logLen=446 canvasEnabled=True
 CODEFIX OK 画布仍可见=True 提示=代码视图需在专业模式启用：更多 ▾ → 切换到专业模式
+DND OK 进入分支=True 移出主流程=True 主流程步数=4->3 落点=否则/0
 DIALOG param OK 1134x1209
 DIALOG function OK 934x609
 DIALOG settings OK 1194x1389

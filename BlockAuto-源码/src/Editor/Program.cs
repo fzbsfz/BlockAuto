@@ -252,6 +252,7 @@ namespace BlockAuto
                         report.AppendLine("OK " + form.LayoutInfo() + " title=" + form.Text);
                         report.AppendLine("RUN " + form.RunStateForCheck());
                         report.AppendLine("CODEFIX " + form.SimpleModeCodeGuardForCheck());
+                        report.AppendLine("DND " + form.DragDropCheckForCheck());
                         RunDialogChecks(form, outPath, report);
                         File.WriteAllText(logPath, report.ToString());
                     }

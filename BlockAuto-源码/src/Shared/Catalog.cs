@@ -106,6 +106,8 @@ namespace BlockAuto
         public int Sort = 100;
         /// <summary>旧版兼容积木：不在积木库显示，但旧脚本仍能打开与运行</summary>
         public bool Hidden;
+        /// <summary>判断类积木：输出 bool，可直接接「如果 / 当…时循环」的条件端口</summary>
+        public bool IsCondition;
 
         public PortSpec Input(string name)
         {
@@ -323,8 +325,9 @@ namespace BlockAuto
             // ---------------- 动作 ----------------
             // 旧版独立「识图」积木：v2.5 起不再出现在积木库，
             // 识图能力合并进「鼠标点击」；保留定义只为让旧脚本仍能打开与运行。
-            BlockInfo fi = new BlockInfo { Type = "find_image", Category = BlockCategory.Action, Title = "识图（旧版）", Summary = "模板匹配查找图片", Width = 290 };
-            fi.Hidden = true;
+            // 识图：判断类积木（输出 found，可直接当 if/while 的条件）
+            BlockInfo fi = new BlockInfo { Type = "find_image", Category = BlockCategory.Action, Title = "识图", Summary = "模板匹配，找到=真（判断类）", Width = 290 };
+            fi.IsCondition = true;
             fi.Params.Add(Pa("template", "模板", "template", "templates/sample.png"));
             fi.Params.Add(Pa("region", "识别区域", "region", "active").WithHint("active=当前窗口，full=全屏，或 x1,y1,x2,y2"));
             fi.Params.Add(Pa("threshold", "相似度", "number", 0.8d).WithHint("0 ~ 1，留空使用全局默认"));
@@ -334,7 +337,8 @@ namespace BlockAuto
             fi.Outputs.Add(P("confidence", "置信度", "num"));
             Add(fi);
 
-            BlockInfo fcolor = new BlockInfo { Type = "find_color", Category = BlockCategory.Action, Title = "找色", Summary = "查找指定颜色像素", Width = 280 };
+            BlockInfo fcolor = new BlockInfo { Type = "find_color", Category = BlockCategory.Action, Title = "找色", Summary = "查找颜色，找到=真（判断类）", Width = 280 };
+            fcolor.IsCondition = true;
             fcolor.Params.Add(Pa("rgb", "颜色", "rgb", "#FF0000"));
             fcolor.Params.Add(Pa("region", "识别区域", "region", "full"));
             fcolor.Params.Add(Pa("tolerance", "颜色容差", "number", 8d));
@@ -390,7 +394,7 @@ namespace BlockAuto
             Add(kt);
 
             BlockInfo kp = new BlockInfo { Type = "key_press", Category = BlockCategory.Action, Title = "按键 / 快捷键", Summary = "如 F5、enter、ctrl+c", Width = 270 };
-            kp.Params.Add(Pa("key", "按键", "text", "enter").WithHint("支持 ctrl+c / alt+tab / shift+s"));
+            kp.Params.Add(Pa("key", "按键", "key", "enter").WithHint("可选常用键 + Ctrl/Alt/Shift 组合，也可手填 ctrl+c"));
             kp.Outputs.Add(P("success", "成功", "bool"));
             Add(kp);
 
@@ -422,7 +426,7 @@ namespace BlockAuto
             Meta("key_type", 30);
             Meta("key_press", 40);
             Meta("mouse_wheel", 50);
-            Meta("find_image", 60, "advanced");
+            Meta("find_image", 60);
             Meta("find_color", 70);
             Meta("sleep", 15);
             Meta("if", 110);

@@ -269,6 +269,21 @@ namespace BlockAuto
                 return;
             }
 
+            if (spec.Kind == "key")
+            {
+                KeyPicker picker = new KeyPicker();
+                picker.Location = new Point(116, 2);
+                picker.Width = 300;
+                picker.Value = Convert.ToString(current);
+                picker.ValueChanged += delegate { _controls[spec.Name] = picker; };
+                row.Height = 108;
+                row.Controls.Add(picker);
+                _controls[spec.Name] = picker;
+                _kinds[spec.Name] = "key";
+                AddRow(flow, row, advanced);
+                return;
+            }
+
             if (spec.Kind == "region")
             {
                 TextBox tb = Ui.TextBox(string.IsNullOrEmpty(Convert.ToString(current)) ? "active" : Convert.ToString(current), false);
@@ -645,6 +660,20 @@ namespace BlockAuto
                     string kind;
                     _kinds.TryGetValue(name, out kind);
                     object value = null;
+                    if (kind == "key")
+                    {
+                        KeyPicker picker = c as KeyPicker;
+                        string keySpec = picker != null ? picker.Value : Convert.ToString(((TextBox)c).Text);
+                        if (!KeyCatalog.IsValid(keySpec))
+                        {
+                            MessageBox.Show(this, "按键写法无效：" + keySpec + Environment.NewLine
+                                + "请用下拉框选择，或手填 ctrl+c / f5 / enter 这类写法。",
+                                "BlockAuto", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        _block.Params[name] = keySpec;
+                        continue;
+                    }
                     if (kind == "number") value = (double)((NumericUpDown)c).Value;
                     else if (kind == "bool") value = ((CheckBox)c).Checked;
                     else if (kind == "choice") value = Convert.ToString(((ComboBox)c).SelectedItem);
