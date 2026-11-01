@@ -75,6 +75,10 @@ namespace BlockAuto
         private DropSpot _dropSpot;
         private Point _dragPoint;
 
+        private KeyPicker _inlineKey;
+        private TextBox _inlineText;
+        private string _inlineBlockId = "";
+
         private bool _simpleMode = true;
         private int _pendingToggle = -1;
         private string _lastToggleId = "";
@@ -171,7 +175,112 @@ namespace BlockAuto
 
             Flatten(CurrentList, 0);
             LayoutRows();
+            SyncInlineEditors();
             Invalidate();
+        }
+
+        /// <summary>
+        /// 展开行里的内联编辑：
+        /// 按键积木 → 键位选择器；输入文本/注释 → 多行文本框。
+        /// 直接摆在这块详情区上，改参数不用开弹窗。
+        /// </summary>
+        private void SyncInlineEditors()
+        {
+            Row target = null;
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                Row r = _rows[i];
+                if (!r.Expanded || r.Block == null || r.Block.IsContainer) continue;   // 禁用状态也允许编辑参数
+                if (r.Block.Type == "key_press" || r.Block.Type == "key_type" || r.Block.Type == "comment")
+                {
+                    target = r;
+                    break;
+                }
+            }
+
+            bool showKey = target != null && target.Block.Type == "key_press";
+            bool showText = target != null && (target.Block.Type == "key_type" || target.Block.Type == "comment");
+
+            if (!showKey && _inlineKey != null) _inlineKey.Visible = false;
+            if (!showText && _inlineText != null) _inlineText.Visible = false;
+            if (target == null) return;
+
+            Rectangle d = target.DetailBounds;
+            int rows = PillRows(target.Block, InnerPillWidth(d));
+            int top = d.Y + Theme.Px(6);
+            int bottom = d.Bottom - 8 - rows * (PillHeight + PillGap);
+            int w = d.Width - 16;
+            int h = Math.Max(Theme.Px(40), bottom - top);
+            Rectangle device = new Rectangle(
+                (int)Math.Round((d.X + 8) * Theme.Scale),
+                (int)Math.Round(top * Theme.Scale),
+                (int)Math.Round(w * Theme.Scale),
+                (int)Math.Round(h * Theme.Scale));
+
+            if (showKey)
+            {
+                if (_inlineKey == null)
+                {
+                    _inlineKey = new KeyPicker();
+                    _inlineKey.ValueChanged += delegate
+                    {
+                        Block b = SelectedInlineBlock();
+                        if (b == null || _inlineKey == null) return;
+                        PushUndo();
+                        b.Params["key"] = _inlineKey.Value;
+                        FireChanged();
+                        Invalidate();
+                    };
+                    Controls.Add(_inlineKey);
+                }
+                if (_inlineBlockId != target.Block.Id)
+                {
+                    _inlineBlockId = target.Block.Id;
+                    _inlineKey.Value = ParamText(target.Block, "key");
+                }
+                _inlineKey.Bounds = device;
+                _inlineKey.Visible = true;
+                _inlineKey.BringToFront();
+            }
+            else if (showText)
+            {
+                if (_inlineText == null)
+                {
+                    _inlineText = new TextBox();
+                    _inlineText.Multiline = true;
+                    _inlineText.ScrollBars = ScrollBars.Vertical;
+                    _inlineText.AcceptsReturn = true;
+                    _inlineText.WordWrap = true;
+                    Theme.ApplyDarkTextBox(_inlineText);
+                    _inlineText.Leave += delegate
+                    {
+                        Block b = SelectedInlineBlock();
+                        if (b == null || _inlineText == null) return;
+                        string cur = ParamText(b, "text");
+                        if (cur == _inlineText.Text) return;
+                        PushUndo();
+                        b.Params["text"] = _inlineText.Text;
+                        FireChanged();
+                        Rebuild();
+                    };
+                    Controls.Add(_inlineText);
+                }
+                if (_inlineBlockId != target.Block.Id)
+                {
+                    _inlineBlockId = target.Block.Id;
+                    _inlineText.Text = ParamText(target.Block, "text").Replace("\n", Environment.NewLine);
+                }
+                _inlineText.Bounds = device;
+                _inlineText.Visible = true;
+                _inlineText.BringToFront();
+            }
+        }
+
+        private Block SelectedInlineBlock()
+        {
+            foreach (Row r in _rows)
+                if (r.Block != null && r.Block.Id == _inlineBlockId) return r.Block;
+            return null;
         }
 
         private void Flatten(List<Block> list, int depth)
@@ -678,7 +787,10 @@ namespace BlockAuto
             int inner = InnerPillWidth(d);
             int rows = WrapDetailButtons(b, inner).Count;
             int textLines = Math.Min(DetailLines(b).Count, 2);
-            return DetailPad + textLines * 15 + rows * (PillHeight + PillGap) + DetailPad;
+            int h = DetailPad + textLines * 15 + rows * (PillHeight + PillGap) + DetailPad;
+            if (b.Type == "key_press") h = Math.Max(h, 172);
+            else if (b.Type == "key_type" || b.Type == "comment") h = Math.Max(h, 148);
+            return h;
         }
 
         private static List<KeyValuePair<Rectangle, string>> BuildDetailHits(Block b, Rectangle d)
@@ -885,24 +997,10 @@ namespace BlockAuto
                     lines.Add("等待 " + ParamText(b, "seconds") + " 秒（支持 0.5 这样的小数）");
                     break;
                 case "key_type":
-                    {
-                        // 展开行里完整展示输入内容（长文本最多两行，超出用省略号）
-                        string text = ParamText(b, "text");
-                        string[] parts = OneLine(text).Split(new string[] { " ⏎ " }, StringSplitOptions.None);
-                        string one = parts.Length > 0 ? parts[0] : "";
-                        if (one.Length > 96) one = one.Substring(0, 96) + "…";
-                        lines.Add("文本：" + one);
-                        if (parts.Length > 1)
-                        {
-                            string two = string.Join(" ⏎ ", parts, 1, parts.Length - 1);
-                            if (two.Length > 96) two = two.Substring(0, 96) + "…";
-                            lines.Add("      " + two);
-                        }
-                        break;
-                    }
+                case "comment":
+                    break;   // 内容直接在展开行的多行框里编辑
                 case "key_press":
-                    lines.Add("按键：" + ParamText(b, "key"));
-                    break;
+                    break;   // 键位选择器直接在展开行里显示
                 default:
                     {
                         BlockInfo info = Catalog.Get(b.Type);

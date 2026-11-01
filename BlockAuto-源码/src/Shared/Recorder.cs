@@ -27,8 +27,8 @@ namespace BlockAuto
                 case RecordedKind.MouseRightClick: return "右键单击 (" + X + "," + Y + ")";
                 case RecordedKind.MouseWheel: return "滚轮 " + (WheelDelta > 0 ? "上" : "下") + " (" + X + "," + Y + ")";
                 case RecordedKind.MouseMove: return "移动到 (" + X + "," + Y + ")";
-                case RecordedKind.KeyText: return "输入文本 \"" + Text + "\"";
-                case RecordedKind.KeyPress: return "按键 " + Key;
+                case RecordedKind.KeyText: return "[键盘] 输入文本 \"" + Text + "\"";
+                case RecordedKind.KeyPress: return "[键盘] 按键 " + Key;
                 default: return Kind.ToString();
             }
         }
@@ -168,6 +168,21 @@ namespace BlockAuto
         public int Count
         {
             get { lock (_sync) return _actions.Count; }
+        }
+
+        /// <summary>键盘类动作（输入文本 / 按键）的条数：录制界面用来告诉用户“键盘也录进去了”。</summary>
+        public int KeyActionCount
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    int n = 0;
+                    foreach (RecordedAction a in _actions)
+                        if (a.Kind == RecordedKind.KeyText || a.Kind == RecordedKind.KeyPress) n++;
+                    return n;
+                }
+            }
         }
 
         /// <summary>删除最后一条录制步骤（录错了可回退）。</summary>

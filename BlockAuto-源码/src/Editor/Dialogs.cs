@@ -103,6 +103,20 @@ namespace BlockAuto
                     try { Scale(new SizeF(s, s)); }
                     catch { }
                 }
+                // 高缩放下弹窗可能比屏幕还高（200% 时参数窗约 1209px），
+                // 内容会顶出屏幕像“卡死”一样。这里统一夹到工作区内，内容区自己滚动。
+                try
+                {
+                    Rectangle wa = Screen.FromControl(this).WorkingArea;
+                    int maxW = Math.Max(320, wa.Width - 60);
+                    int maxH = Math.Max(240, wa.Height - 60);
+                    int w = Math.Min(Width, maxW);
+                    int h = Math.Min(Height, maxH);
+                    if (w != Width || h != Height) ClientSize = new Size(w, h);
+                    if (Left + Width > wa.Right) Left = Math.Max(wa.Left, wa.Right - Width - 10);
+                    if (Top + Height > wa.Bottom) Top = Math.Max(wa.Top, wa.Bottom - Height - 10);
+                }
+                catch { }
             }
             base.OnLoad(e);
         }

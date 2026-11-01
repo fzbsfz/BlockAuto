@@ -43,7 +43,8 @@ namespace BlockAuto
             title.AutoSize = true;
             Controls.Add(title);
 
-            Label hint = Ui.Label("录制只记录键鼠时序，不识别画面、不自动加判断循环；坐标是屏幕绝对坐标，换分辨率会错位，跨机器请改用识图积木。");
+            Label hint = Ui.Label("支持录制：鼠标点击 / 双击 / 右键 / 滚轮 / 移动，以及键盘输入和快捷键（例如 Ctrl+C、F5）。"
+                + "只记录键鼠时序，不识别画面、不自动加判断循环；坐标是屏幕绝对坐标，换分辨率会错位，跨机器请改用识图积木。");
             hint.Location = new Point(16, 44);
             hint.MaximumSize = new Size(670, 0);
             hint.AutoSize = true;
@@ -120,7 +121,8 @@ namespace BlockAuto
             clear.Width = 90;
             Controls.Add(clear);
 
-            Label note = Ui.Label("提示：开始录制后本窗口不会拦截你的操作，录制器会全局记录；按「停止」或本窗口的停止按钮结束。");
+            Label note = Ui.Label("提示：开始录制后本窗口不会拦截你的操作，鼠标和键盘都会被全局记录（键盘动作会以「输入文本 / 按键」显示在列表里，"
+                + "录制中实时刷新）；按「停止」或本窗口的停止按钮结束。");
             note.Location = new Point(16, 442);
             note.MaximumSize = new Size(670, 0);
             note.AutoSize = true;
@@ -168,7 +170,8 @@ namespace BlockAuto
             string state = _recorder.IsPaused ? "已暂停" : "录制中";
             // 状态行同时显示步数与耗时，录制过程中每 0.5 秒刷新
             if (_status != null && !_status.IsDisposed)
-                _status.Text = state + " · 已录 " + _recorder.Count + " 步 · " + sec + " 秒";
+                _status.Text = state + " · 已录 " + _recorder.Count + " 步（键盘 " + _recorder.KeyActionCount
+                    + " 步）· " + sec + " 秒";
         }
 
         private void StartRecording()

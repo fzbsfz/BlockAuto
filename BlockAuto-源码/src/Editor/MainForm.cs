@@ -58,7 +58,20 @@ namespace BlockAuto
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
+            bool dragged = !_maybeDrag;
             _maybeDrag = false;
+            if (dragged || e.Button != MouseButtons.Left) return;
+            // 点右侧「+」直接添加（很多人第一反应就是点加号）
+            Rectangle plus = new Rectangle(Width - Theme.Px(28), 0, Theme.Px(28), Height);
+            if (plus.Contains(e.Location))
+            {
+                Action<string> h = AddRequested;
+                if (h != null) h(BlockType);
+                return;
+            }
+            // 点其它位置：提示一下怎么加，避免“点了没反应”
+            ToolTip tip = new ToolTip();
+            tip.SetToolTip(this, "双击积木，或点右侧 + 添加");
         }
 
         protected override void OnDoubleClick(EventArgs e)
@@ -84,8 +97,17 @@ namespace BlockAuto
             BlockIcons.Draw(g, BlockType, new RectangleF(Theme.Px(11), (Height - Theme.Px(16)) / 2f, Theme.Px(16), Theme.Px(16)), accent);
             TextRenderer.DrawText(g, Text, Font, new Rectangle(Theme.Px(34), 0, Width - Theme.Px(56), Height), Theme.Text,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            TextRenderer.DrawText(g, "+", Font, new Rectangle(Width - Theme.Px(24), 0, Theme.Px(18), Height),
-                _hover ? Theme.Text : Theme.TextDim, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+            // 「+」做成一个小方钮，hover 时填充，明确表示“点这里添加”
+            Rectangle plus = new Rectangle(Width - Theme.Px(26), (Height - Theme.Px(18)) / 2, Theme.Px(18), Theme.Px(18));
+            using (System.Drawing.Drawing2D.GraphicsPath pp = Theme.RoundedRect(plus, 4))
+            {
+                using (SolidBrush pb = new SolidBrush(_hover ? Theme.Mix(Theme.Panel, accent, 0.18f) : Theme.PanelAlt))
+                    g.FillPath(pb, pp);
+                using (Pen pen = new Pen(_hover ? accent : Theme.Border)) g.DrawPath(pen, pp);
+            }
+            TextRenderer.DrawText(g, "+", Theme.UiFontCached(10f, FontStyle.Bold), plus,
+                _hover ? accent : Theme.TextDim,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
     }
 
@@ -1399,6 +1421,49 @@ namespace BlockAuto
             return _canvas != null ? _canvas.DropIntoBranchForCheck() : "nocanvas";
         }
 
+        /// <summary>自检：走真实的“点选中”路径，看参数抽屉是否真的弹出并停在可视区内。</summary>
+        internal string DrawerFlowForCheck()
+        {
+            if (_canvas == null || _doc == null || _doc.Blocks.Count == 0) return "skip 无积木";
+            _drawerManualHide = false;
+            _canvas.SelectBlock(_doc.Blocks[0]);
+            DateTime until = DateTime.Now.AddMilliseconds(700);
+            while (DateTime.Now < until) { Application.DoEvents(); System.Threading.Thread.Sleep(10); }
+            bool vis = _sidePanel != null && _sidePanel.Visible;
+            Rectangle b = _sidePanel != null ? _sidePanel.Bounds : Rectangle.Empty;
+            bool inside = _contentPanel != null && b.Left >= 0 && b.Right <= _contentPanel.ClientSize.Width + 2 && b.Width > 100;
+            return (vis && inside ? "OK" : "FAIL") + " visible=" + vis + " bounds=" + b
+                + " content=" + (_contentPanel != null ? _contentPanel.ClientSize.ToString() : "-");
+        }
+
+        /// <summary>自检：按键积木的「全部参数…」弹窗能否正常打开（防止渲染卡死）。</summary>
+        internal string KeyDialogForCheck()
+        {
+            if (_doc == null) return "skip";
+            Block key = null;
+            foreach (Block b in _doc.AllBlocks())
+                if (b.Type == "key_press") { key = b; break; }
+            if (key == null) return "skip 没有按键积木";
+            DateTime t0 = DateTime.Now;
+            try
+            {
+                using (ParamDialog d = new ParamDialog(_doc, key))
+                {
+                    d.StartPosition = FormStartPosition.Manual;
+                    d.Location = new Point(-6000, -6000);
+                    d.Show();
+                    Application.DoEvents();
+                    int controls = d.Controls.Count;
+                    d.Close();
+                    return "OK " + (int)(DateTime.Now - t0).TotalMilliseconds + "ms controls=" + controls;
+                }
+            }
+            catch (Exception ex)
+            {
+                return "FAIL " + (int)(DateTime.Now - t0).TotalMilliseconds + "ms " + ex.GetType().Name + " " + ex.Message;
+            }
+        }
+
         internal string SimpleModeCodeGuardForCheck()
         {
             string oldMode = _config.UiMode;
@@ -1901,9 +1966,28 @@ namespace BlockAuto
         {
             if (b == null || _doc == null) return;
             string before = _doc.ToJson();
-            using (ParamDialog dlg = new ParamDialog(_doc, b))
+            try
             {
-                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                using (ParamDialog dlg = new ParamDialog(_doc, b))
+                {
+                    if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                }
+            }
+            catch (Exception ex)
+            {
+                // 弹窗构造/渲染出错时给明确提示，别让用户以为“卡死”
+                _logger.Write(new LogEntry
+                {
+                    Level = LogLevel.Error,
+                    Source = "参数",
+                    Message = "打开参数窗口失败：" + Catalog.TitleOf(b.Type) + "，" + ex.Message,
+                    Detail = ex.StackTrace
+                });
+                MessageBox.Show(this,
+                    "打开的「" + Catalog.TitleOf(b.Type) + "」参数窗口出错了：" + Environment.NewLine + ex.Message
+                    + Environment.NewLine + Environment.NewLine + "可以先用右侧参数抽屉改常用项，详细日志见日志面板。",
+                    "BlockAuto", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
             _doc.NormalizeBranches();
             _canvas.PushUndoSnapshot(before);

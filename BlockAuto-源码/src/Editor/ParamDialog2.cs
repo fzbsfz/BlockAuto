@@ -31,6 +31,10 @@ namespace BlockAuto
         private Panel _coordRow;
         private Panel _templateRowPanel;
 
+        private FlowLayoutPanel _flow;
+        private readonly List<Panel> _visionRows = new List<Panel>();
+        private readonly List<Control> _visionToggles = new List<Control>();
+
         // 模板
         private string _templateValue = "";
         private Label _templateLabel;
@@ -48,6 +52,17 @@ namespace BlockAuto
 
         private void BuildUi()
         {
+            TableLayoutPanel root = new TableLayoutPanel();
+            root.Dock = DockStyle.Fill;
+            root.ColumnCount = 1;
+            root.RowCount = 3;
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+            root.BackColor = Theme.Panel;
+            Controls.Add(root);
+
             Label title = new Label();
             title.Text = Catalog.TitleOf(_block.Type);
             title.ForeColor = Theme.Text;
@@ -56,16 +71,18 @@ namespace BlockAuto
             title.Height = 38;
             title.TextAlign = ContentAlignment.MiddleLeft;
             title.Padding = new Padding(14, 0, 0, 0);
-            Controls.Add(title);
+            title.Dock = DockStyle.Fill;
+            root.Controls.Add(title, 0, 0);
 
             FlowLayoutPanel flow = new FlowLayoutPanel();
+            _flow = flow;
             flow.Dock = DockStyle.Fill;
             flow.FlowDirection = FlowDirection.TopDown;
             flow.WrapContents = false;
             flow.AutoScroll = true;
             flow.Padding = new Padding(10, 4, 10, 10);
             flow.BackColor = Theme.Panel;
-            Controls.Add(flow);
+            root.Controls.Add(flow, 0, 1);
 
             BlockInfo info = Catalog.Get(_block.Type);
             bool simple = !string.Equals(Environment.GetEnvironmentVariable("BLOCKAUTO_PRO"), "1") && !ConfigModeIsPro();
@@ -77,9 +94,14 @@ namespace BlockAuto
                     if (spec.Name == "branches") continue;
                     if (_block.Type == "mouse_click" && (spec.Name == "x" || spec.Name == "y" || spec.Name == "coord_mode")) continue;
                     if (_block.Type == "mouse_click" && spec.Name == "template") continue;
+                    // 识图相关参数单独记录：固定坐标模式下隐藏（#5）
+                    bool visionParam = _block.Type == "mouse_click" &&
+                        (spec.Name == "region" || spec.Name == "threshold" || spec.Name == "on_fail" ||
+                         spec.Name == "retries" || spec.Name == "retry_delay");
                     if (_block.Type == "find_image" && spec.Name == "template") continue;
 
                     bool advanced = IsAdvancedParam(_block.Type, spec.Name);
+                    int beforeCount = flow.Controls.Count;
                     if (advanced)
                     {
                         AddParam(flow, spec, true);
@@ -87,6 +109,15 @@ namespace BlockAuto
                     else
                     {
                         AddParam(flow, spec, false);
+                    }
+                    if (visionParam)
+                    {
+                        for (int ci = beforeCount; ci < flow.Controls.Count; ci++)
+                        {
+                            Control added = flow.Controls[ci];
+                            Panel p = added as Panel;
+                            if (p != null) _visionRows.Add(p);
+                        }
                     }
                 }
             }
@@ -132,9 +163,31 @@ namespace BlockAuto
             cancel.Location = new Point(460, 11);
             bottom.Controls.Add(ok);
             bottom.Controls.Add(cancel);
-            Controls.Add(bottom);
+            bottom.Dock = DockStyle.Fill;
+            root.Controls.Add(bottom, 0, 2);
             AcceptButton = ok;
             CancelButton = cancel;
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            FitToContent();
+        }
+
+        /// <summary>弹窗高度贴合内容（参数少时不再是一个大白框），同时不超过屏幕。</summary>
+        private void FitToContent()
+        {
+            try
+            {
+                if (_flow == null) return;
+                int want = _flow.PreferredSize.Height + Theme.Px(38 + 54 + 18);
+                Rectangle wa = Screen.FromControl(this).WorkingArea;
+                int max = Math.Max(Theme.Px(240), wa.Height - Theme.Px(60));
+                int h = Math.Max(Theme.Px(260), Math.Min(want, max));
+                if (Math.Abs(h - Height) > Theme.Px(8)) Height = h;
+            }
+            catch { }
         }
 
         private bool ConfigModeIsPro()
@@ -258,8 +311,9 @@ namespace BlockAuto
 
             if (spec.Kind == "multiline")
             {
-                row.Height = 92;
+                row.Height = 132;   // 多行内容给足 5 行高度，别挤成一条
                 TextBox tb = Ui.TextBox(Convert.ToString(current), true);
+                tb.Height = 108;
                 tb.Location = new Point(116, 4);
                 tb.Width = 380;
                 row.Controls.Add(tb);
@@ -451,22 +505,34 @@ namespace BlockAuto
                 _coordMode = "image";
                 _coordBound = false;
                 UpdateCoordLabel();
-                if (_templateRowPanel != null) _templateRowPanel.Visible = true;
+                UpdateVisionVisibility();
             };
             fixedBtn.Click += delegate
             {
                 _coordMode = "recorded";
                 _coordBound = false;
                 UpdateCoordLabel();
+                UpdateVisionVisibility();
             };
             _modeButtons = new FlatButton[] { fixedBtn, imageBtn };
 
             flow.Controls.Add(row);
             _coordRow = row;
             UpdateCoordLabel();
+            UpdateVisionVisibility();
         }
 
         private FlatButton[] _modeButtons = new FlatButton[0];
+
+        /// <summary>固定坐标时隐藏「相似度/找不到图时/重试次数/重试间隔/模板」这些识图参数（#5）。</summary>
+        private void UpdateVisionVisibility()
+        {
+            bool vision = _coordMode == "image" || _coordBound;
+            foreach (Panel p in _visionRows) if (p != null) p.Visible = vision;
+            if (_templateRowPanel != null) _templateRowPanel.Visible = vision;
+            if (_templateLabel != null && _templateLabel.Parent != null)
+                _templateLabel.Parent.Visible = vision;
+        }
 
         private void UpdateCoordLabel()
         {

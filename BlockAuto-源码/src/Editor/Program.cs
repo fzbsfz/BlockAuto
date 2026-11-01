@@ -106,6 +106,16 @@ namespace BlockAuto
             List<KeyValuePair<string, Func<Form>>> items = new List<KeyValuePair<string, Func<Form>>>();
             if (first != null)
                 items.Add(new KeyValuePair<string, Func<Form>>("param", delegate { return new ParamDialog(doc, first); }));
+            // 每种积木各开一次「全部参数」弹窗：卡死/空白会直接暴露在截图与报告里
+            HashSet<string> seenTypes = new HashSet<string>();
+            foreach (Block b in doc.AllBlocks())
+            {
+                if (!seenTypes.Add(b.Type)) continue;
+                if (b == first) continue;
+                Block captured = b;
+                items.Add(new KeyValuePair<string, Func<Form>>("param-" + b.Type,
+                    delegate { return new ParamDialog(doc, captured); }));
+            }
             items.Add(new KeyValuePair<string, Func<Form>>("function", delegate { return new FunctionDialog(doc, null); }));
             items.Add(new KeyValuePair<string, Func<Form>>("settings", delegate { return new SettingsForm(AppConfig.Load()); }));
             items.Add(new KeyValuePair<string, Func<Form>>("hotkeyedit", delegate { return new HotkeyEditDialog(null); }));
@@ -253,6 +263,8 @@ namespace BlockAuto
                         report.AppendLine("RUN " + form.RunStateForCheck());
                         report.AppendLine("CODEFIX " + form.SimpleModeCodeGuardForCheck());
                         report.AppendLine("DND " + form.DragDropCheckForCheck());
+                        report.AppendLine("DRAWER " + form.DrawerFlowForCheck());
+                        report.AppendLine("KEYDLG " + form.KeyDialogForCheck());
                         RunDialogChecks(form, outPath, report);
                         File.WriteAllText(logPath, report.ToString());
                     }
